@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Search Ria’s Library and download books in your preferred format.">
+  <title>Ria’s Library</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./catalog.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap masthead-inner">
+      <div>
+        <h1>Ria’s Library</h1>
+        <p>Find a book, select a format, and download it.</p>
+      </div>
+      <button id="open-folder" class="secondary" type="button">Open local folder</button>
+      <input id="folder" type="file" webkitdirectory multiple hidden>
+    </div>
+  </header>
+  <main class="wrap">
+    <div class="filters" aria-label="Catalog filters">
+      <label for="search">Search books
+        <input id="search" type="search" placeholder="Search by title or author" autocomplete="off" disabled>
+      </label>
+      <label for="format">Format
+        <select id="format" disabled><option value="">All formats</option></select>
+      </label>
+    </div>
+    <p id="summary" class="summary" role="status" aria-live="polite">Loading catalog…</p>
+    <ul id="books" class="books" aria-label="Books"></ul>
+    <nav id="pagination" class="pagination" aria-label="Catalog pages" hidden>
+      <button id="previous" class="secondary" type="button">Previous</button>
+      <span id="page-number"></span>
+      <button id="next" class="secondary" type="button">Next</button>
+    </nav>
+  </main>
+</body>
+</html>
