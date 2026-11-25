@@ -11,15 +11,22 @@
 <body>
   <header class="masthead">
     <div class="wrap masthead-inner">
-      <div>
-        <h1>Ria’s Library</h1>
-        <p>Find a book, select a format, and download it.</p>
+      <div class="welcome">
+        <h1>Ria’s <em>Library</em></h1>
+        <p>Find your next favorite read and download it in the format you love.</p>
+        <a class="browse" href="#catalog">Browse the books</a>
       </div>
+      <figure class="hero-art">
+        <img src="./reading-nook.png" width="1536" height="1024" alt="Painted reading nook with an open book, flowers, and a heart-shaped cup" fetchpriority="high">
+      </figure>
+    </div>
+  </header>
+  <main id="catalog" class="wrap">
+    <div class="catalog-heading">
+      <h2>Browse the shelves</h2>
       <button id="open-folder" class="secondary" type="button">Open local folder</button>
       <input id="folder" type="file" webkitdirectory multiple hidden>
     </div>
-  </header>
-  <main class="wrap">
     <div class="filters" aria-label="Catalog filters">
       <label for="search">Search books
         <input id="search" type="search" placeholder="Search by title or author" autocomplete="off" disabled>

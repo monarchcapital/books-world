@@ -74,6 +74,11 @@ function render() {
   for (const book of results.slice(page * pageSize, (page + 1) * pageSize)) {
     const row = document.createElement('li');
     row.className = 'book';
+    const art = document.createElement('span');
+    art.className = 'book-art';
+    art.setAttribute('aria-hidden', 'true');
+    const info = document.createElement('div');
+    info.className = 'book-info';
     const title = document.createElement('span');
     title.className = 'title';
     title.textContent = book.title;
@@ -92,7 +97,8 @@ function render() {
       link.href = book.url;
     }
     link.download = book.name;
-    row.append(title, details, link);
+    info.append(title, details);
+    row.append(art, info, link);
     rows.append(row);
   }
   elements.books.replaceChildren(rows);
@@ -129,6 +135,7 @@ async function listGitHubItems(endpoint) {
   const items = [];
   for (let pageNumber = 1; ; pageNumber++) {
     const response = await fetch(`${releaseApi}/${endpoint}?per_page=100&page=${pageNumber}`, {
+      cache: 'no-cache',
       headers: { Accept: 'application/vnd.github+json' },
     });
     if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}`);
