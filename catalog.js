@@ -3,6 +3,7 @@
 const bookFormats = new Set(['pdf', 'epub', 'mobi', 'azw', 'azw3', 'azw4', 'kfx', 'fb2', 'djvu', 'djv', 'cbz', 'cbr', 'lit', 'lrf', 'pdb', 'chm']);
 const releaseApi = 'https://api.github.com/repos/monarchcapital/books-world';
 const releaseDownloads = 'https://github.com/monarchcapital/books-world/releases/download/';
+const communityApi = document.body.dataset.uploadApi;
 const pageSize = 40;
 const genreRules = [
   ['fiction', 'Fiction & literature', /\b(amish tripathi|immortals of meluha|secret of the nagas|oath of the vayuputras|scion of ikshvaku|premchand|krishn\s?chandar|bankim\s?chandra|anandmath|my cousin rachel|jhumpa lahiri|the namesake|stephen chbosky|perks of being a wallflower|tagore|shesher kabita|paradise lost|john milton|jill santopolo|orhan pamuk|claire keegan|novel|short stories|poetry)\b/],
@@ -25,27 +26,30 @@ let page = 0;
 let selectedGenre = '';
 let catalogRequest = 0;
 let visibleObjectUrls = [];
+let browsingLocal = false;
+const onlineEntries = new Map();
 
 function normalize(value) {
   return value.normalize('NFKD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase().replace(/[^\p{Letter}\p{Number}]+/gu, ' ');
 }
 
-function bookDetails({ name, size, title: suppliedTitle, genre: suppliedGenre, file, url }) {
+function bookDetails({ name, size, title: suppliedTitle, genre: suppliedGenre, author, uploader, file, url }) {
   if (typeof name !== 'string' || !Number.isSafeInteger(size) || size < 0) return null;
   const extension = name.split('.').at(-1).toLowerCase();
   if (!name.includes('.') || !bookFormats.has(extension)) return null;
   const stem = name.slice(0, -extension.length - 1);
-  const title = (suppliedTitle || stem).replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim() || name;
-  const searchText = normalize(title);
+  const title = (typeof suppliedTitle === 'string' && suppliedTitle ? suppliedTitle : stem).replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim() || name;
+  const credits = [typeof author === 'string' && author ? `By ${author}` : '', typeof uploader === 'string' && uploader ? `Shared by ${uploader}` : ''].filter(Boolean);
+  const searchText = normalize([title, typeof author === 'string' ? author : ''].join(' '));
   const genre = genreLabels.has(suppliedGenre) ? suppliedGenre : (genreRules.find(([, , pattern]) => pattern?.test(searchText))?.[0] ?? 'uncategorized');
-  const searchable = `${searchText} ${normalize(genreLabels.get(genre))}`;
-  if (file) return { name, size, title, extension, genre, searchable, file };
+  const searchable = `${searchText} ${normalize(genreLabels.get(genre))} ${normalize(typeof uploader === 'string' ? uploader : '')}`;
+  if (file) return { name, size, title, extension, genre, searchable, credits, file };
   if (typeof url !== 'string' || !url) return null;
   try {
     const target = new URL(url, window.location.href);
     if (target.protocol !== 'https:' && target.origin !== window.location.origin) return null;
     if (target.protocol !== 'https:' && target.protocol !== 'http:') return null;
-    return { name, size, title, extension, genre, searchable, url: target.href };
+    return { name, size, title, extension, genre, searchable, credits, url: target.href };
   } catch {
     return null;
   }
@@ -141,6 +145,12 @@ function render() {
     }
     link.download = book.name;
     info.append(title, details);
+    if (book.credits.length) {
+      const credits = document.createElement('span');
+      credits.className = 'credits';
+      credits.textContent = book.credits.join(' · ');
+      info.append(credits);
+    }
     row.append(art, info, link);
     rows.append(row);
   }
@@ -164,6 +174,7 @@ elements.folder.addEventListener('change', () => {
   const entries = [...elements.folder.files].map(file => ({ name: file.name, size: file.size, file }));
   if (!entries.length) return;
   catalogRequest++;
+  browsingLocal = true;
   setLibrary(entries, 'No supported book files were found in that folder.');
   elements.folder.value = '';
 });
@@ -212,6 +223,22 @@ async function loadReleaseCatalog() {
   });
 }
 
+async function loadCommunityCatalog() {
+  const books = [];
+  let cursor;
+  do {
+    const url = new URL('/api/books', communityApi);
+    if (cursor) url.searchParams.set('cursor', cursor);
+    const response = await fetch(url, { credentials: 'omit' });
+    if (!response.ok) throw new Error('The community catalog is unavailable');
+    const result = await response.json();
+    if (!Array.isArray(result.books)) throw new Error('Invalid community catalog');
+    books.push(...result.books);
+    cursor = result.cursor;
+  } while (cursor);
+  return books;
+}
+
 async function loadHostedCatalog() {
   const request = ++catalogRequest;
   if (window.location.protocol === 'file:') {
@@ -231,23 +258,37 @@ async function loadHostedCatalog() {
     // Older deployments may have no snapshot. The release catalog can still load.
   }
   if (request !== catalogRequest) return;
-  if (savedEntries.length) setLibrary(savedEntries, emptyMessage);
+  for (const entry of savedEntries) onlineEntries.set(entry.url, entry);
+  if (onlineEntries.size) setLibrary([...onlineEntries.values()], emptyMessage);
 
-  try {
-    const liveEntries = await loadReleaseCatalog();
-    if (request !== catalogRequest) return;
-    const merged = new Map(savedEntries.map(entry => [entry.url, entry]));
-    for (const entry of liveEntries) {
-      if (!merged.has(entry.url)) merged.set(entry.url, entry);
-    }
-    if (!savedEntries.length || merged.size > savedEntries.length) {
-      setLibrary([...merged.values()], emptyMessage, savedEntries.length > 0);
-    }
-  } catch {
-    if (!savedEntries.length && request === catalogRequest) {
-      elements.summary.textContent = 'The online catalog could not be loaded. Refresh to try again, or open a local folder.';
-    }
+  const sources = [loadReleaseCatalog()];
+  if (communityApi) sources.push(loadCommunityCatalog());
+  const results = await Promise.allSettled(sources);
+  if (request !== catalogRequest) return;
+  const before = onlineEntries.size;
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue;
+    for (const entry of result.value) if (!onlineEntries.has(entry.url)) onlineEntries.set(entry.url, entry);
+  }
+  if (onlineEntries.size && onlineEntries.size !== before) {
+    setLibrary([...onlineEntries.values()], emptyMessage, before > 0);
+  } else if (!onlineEntries.size && results.every(result => result.status === 'rejected')) {
+    elements.summary.textContent = 'The online catalog could not be loaded. Refresh to try again, or open a local folder.';
+  } else if (!onlineEntries.size) {
+    elements.summary.textContent = emptyMessage;
   }
 }
+
+window.addEventListener('formyria:book-published', event => {
+  const entry = event.detail;
+  if (!bookDetails(entry)) return;
+  onlineEntries.set(entry.url, entry);
+  if (browsingLocal) {
+    browsingLocal = false;
+    loadHostedCatalog();
+  } else {
+    setLibrary([...onlineEntries.values()], '', true);
+  }
+});
 
 loadHostedCatalog();

@@ -76,9 +76,40 @@ h1 em { display: block; color: var(--berry); font-weight: 500; }
 
 main { padding-block: 2.1rem 3.6rem; scroll-margin-top: 1rem; }
 .catalog-heading { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; margin-bottom: 1rem; }
+.catalog-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: .45rem; }
 h2 { font-size: clamp(2.15rem, 5vw, 3.25rem); line-height: 1.01; }
 button.secondary { border-color: var(--line); background: #fffafc; color: var(--berry-dark); }
 button.secondary:hover:enabled { background: #fce4ef; }
+button.upload-button { border-color: var(--berry); background: var(--berry); color: white; }
+button.upload-button:hover:enabled { background: var(--berry-dark); }
+.upload-dialog {
+  width: min(calc(100% - 1.5rem), 33rem);
+  max-height: calc(100% - 1.5rem);
+  padding: 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 1.3rem;
+  background: #fffaf8;
+  color: inherit;
+  box-shadow: 0 2rem 6rem #53213f42;
+}
+.upload-dialog::backdrop { background: #45203688; }
+.upload-dialog form { display: grid; gap: .8rem; }
+.upload-dialog p { margin: 0; color: var(--muted); }
+.upload-heading { display: flex; align-items: center; justify-content: space-between; gap: .7rem; }
+.upload-dialog input[type='text'], .upload-dialog input[type='file'] {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: .5rem .7rem;
+  border: 1px solid #dcb8cb;
+  border-radius: .68rem;
+  background: #fff6fb;
+  font-weight: 400;
+  font-size: 1rem;
+}
+.upload-dialog .field-help { margin-top: -.55rem; font-size: .88rem; }
+.upload-status:empty { display: none; }
+.upload-dialog #publish-upload { justify-self: start; }
 .filters {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(9rem, 13rem);
@@ -178,6 +209,7 @@ label[for='format']::after {
 .book-info { display: grid; gap: .2rem; }
 .title { overflow-wrap: anywhere; font-weight: 660; line-height: 1.28; }
 .details { color: var(--muted); font-size: .87rem; }
+.credits { color: var(--muted); font-size: .86rem; overflow-wrap: anywhere; }
 .download { justify-self: start; min-height: 2.35rem; padding: .32rem .8rem; color: var(--berry-dark); background: #fbe4ee; font-size: .92rem; }
 .pagination { display: flex; align-items: center; justify-content: center; gap: .75rem; margin-top: 1.4rem; }
 

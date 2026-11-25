@@ -7,8 +7,9 @@
   <title>Ria’s Library</title>
   <link rel="stylesheet" href="./styles.css">
   <script src="./catalog.js" defer></script>
+  <script src="./upload.js" defer></script>
 </head>
-<body>
+<body data-upload-api="https://rias-library.nutmegarbor1.chatgpt.site">
   <header class="masthead">
     <div class="wrap masthead-inner">
       <div class="welcome">
@@ -24,7 +25,10 @@
   <main id="catalog" class="wrap">
     <div class="catalog-heading">
       <h2>Browse the shelves</h2>
-      <button id="open-folder" class="secondary" type="button">Open local folder</button>
+      <div class="catalog-actions">
+        <button id="open-folder" class="secondary" type="button">Open local folder</button>
+        <button id="open-upload" class="secondary upload-button" type="button" hidden>Upload a book</button>
+      </div>
       <input id="folder" type="file" webkitdirectory multiple hidden>
     </div>
     <div class="filters" aria-label="Catalog filters">
@@ -47,5 +51,29 @@
       <button id="next" class="secondary" type="button">Next</button>
     </nav>
   </main>
+  <dialog id="upload-dialog" class="upload-dialog" aria-labelledby="upload-title">
+    <form id="upload-form">
+      <div class="upload-heading">
+        <h2 id="upload-title">Share a book</h2>
+        <button id="close-upload" class="secondary" type="button">Close</button>
+      </div>
+      <p>Anyone can download your book and see the title, author, and uploader name you enter.</p>
+      <label for="upload-file">Book file
+        <input id="upload-file" name="file" type="file" accept=".pdf,.epub,application/pdf,application/epub+zip" required>
+      </label>
+      <p class="field-help">PDF or EPUB, up to 25 MB.</p>
+      <label for="book-title">Book title
+        <input id="book-title" name="title" type="text" maxlength="140" required>
+      </label>
+      <label for="book-author">Author
+        <input id="book-author" name="author" type="text" maxlength="100" required>
+      </label>
+      <label for="book-uploader">Uploader display name
+        <input id="book-uploader" name="uploader" type="text" maxlength="60" autocomplete="nickname" required>
+      </label>
+      <p id="upload-status" class="upload-status" role="status" aria-live="polite"></p>
+      <button id="publish-upload" class="secondary upload-button" type="submit">Publish book</button>
+    </form>
+  </dialog>
 </body>
 </html>
