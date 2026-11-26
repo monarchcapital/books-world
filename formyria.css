@@ -67,6 +67,23 @@ input::placeholder { color: #b3a089 }
 .hall-hero.arriving::before { animation: arrive 850ms ease-out both }
 @keyframes arrive { from { transform: scale(1.12) } to { transform: scale(1) } }
 .hall-hero h1 { font: normal clamp(54px, 8vw, 110px)/1 var(--serif); margin: 14px 0 24px; letter-spacing: -.065em }
+.tour { isolation: isolate; position: relative; min-height: 540px; height: calc(100svh - 78px); max-height: 980px; overflow: hidden; background: #302016 }
+.tour canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; cursor: grab; touch-action: none }
+.tour canvas:active { cursor: grabbing }
+.tour canvas.can-pick { cursor: pointer }
+.tour-overlay { position: absolute; inset: 0; pointer-events: none; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr auto; padding: clamp(16px, 3.5vw, 52px); gap: 15px; background: linear-gradient(110deg,#130d08c9 0%,#150d0824 37%,transparent 63%), linear-gradient(0deg,#120b07ca,transparent 38%); }
+.tour-overlay button, .tour-overlay a { pointer-events: auto }
+.tour-heading { grid-column: 1 / -1; align-self: start; max-width: 510px; text-shadow: 0 1px 12px #160c03 }
+.tour-heading h1 { font: normal clamp(42px, 7vw, 92px)/.99 var(--serif); letter-spacing: -.065em; margin: 9px 0 14px }
+.tour-heading p:last-child { color: #f6dfbf; max-width: 335px; font-size: 13px }
+.tour-map { grid-column: 2; grid-row: 2 / 4; align-self: end; display: grid; grid-template-columns: repeat(2,minmax(100px,1fr)); gap: 5px; padding: 8px; border: 1px solid var(--line); background: #18110de8 }
+.tour-map button { font-size: 12px; min-height: 32px; padding: 5px 8px }
+.tour-map button:last-child { grid-column: 1 / -1 }
+.tour-map [aria-current] { border-color: var(--brass); color: var(--brass) }
+.tour-actions { grid-row: 3; grid-column: 1; display: flex; flex-wrap: wrap; gap: 8px; align-self: end }
+.tour-actions .outline { background: #1b140fe8 }
+.tour-book-label { grid-column: 1; grid-row: 2; align-self: end; max-width: 350px; padding: 6px 12px; background: #160d08df; color: #fff0d4; font: 18px/1.35 var(--serif) }
+.tour-book-label:empty { display: none }
 .shelves, .office { padding-block: 52px 76px }
 .section-title { font: normal clamp(32px, 5vw, 57px)/1.05 var(--serif); letter-spacing: -.035em; margin: 12px 0 19px; overflow-wrap: anywhere }
 .catalogue-controls { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 15px; padding: 16px; background: #201a16; border: 1px solid var(--line) }
@@ -125,6 +142,11 @@ dialog .hall-actions { margin-top: 16px }
   .spine { font-size: 15px; padding: 9px }
   .office-toolbar { align-items: flex-start; flex-direction: column }
   .shelves, .office { padding-block: 35px 50px }
+  .tour { height: calc(100svh - 64px); min-height: 520px }
+  .tour-overlay { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto; gap: 8px; padding: 16px }
+  .tour-map { grid-column: 1; grid-row: 3; justify-self: end }
+  .tour-actions { grid-row: 4 }
+  .tour-actions .brass, .tour-actions .outline { min-height: 38px; padding: 7px 10px; font-size: 13px }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important }

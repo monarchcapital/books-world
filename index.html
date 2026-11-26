@@ -63,6 +63,29 @@
     </section>
 
     <section id="library" hidden aria-labelledby="hall-title">
+      <section id="library-tour" class="tour" aria-label="Three-dimensional library tour" hidden>
+        <canvas id="tour-canvas" aria-label="Interactive Grand Hall. Drag to look around. Use the arrow keys or the floor plan to move." tabindex="0"></canvas>
+        <div class="tour-overlay">
+          <div class="tour-heading">
+            <p class="kicker"><span></span> Ria’s Library</p>
+            <h1 id="tour-room" tabindex="-1">The Grand Hall</h1>
+            <p id="tour-instructions">Drag to look around. Select a bookcase or use the floor plan.</p>
+          </div>
+          <div id="tour-book-label" class="tour-book-label" aria-hidden="true"></div>
+          <nav class="tour-map" aria-label="Interactive floor plan">
+            <button class="outline" type="button" data-stop="archives">Archives</button>
+            <button class="outline" type="button" data-stop="desk">Reading Desk</button>
+            <button class="outline" type="button" data-stop="west">West Stacks</button>
+            <button class="outline" type="button" data-stop="east">East Gallery</button>
+            <button class="outline" type="button" data-stop="hall" aria-current="location">Grand Hall</button>
+          </nav>
+          <div class="tour-actions">
+            <a class="brass" href="#shelves">Catalogue <span aria-hidden="true">↓</span></a>
+            <button class="outline" type="button" id="tour-office" hidden>Ria’s Office <span id="tour-notifications" class="counter" hidden></span></button>
+            <button class="outline" type="button" id="tour-light" aria-pressed="false">Night lighting</button>
+          </div>
+        </div>
+      </section>
       <div class="hall-hero">
         <div class="hall-hero-content layout">
           <p class="kicker"><span></span> Ria’s Library</p>

@@ -8,6 +8,64 @@ const passwordForm = $('#password-form');
 const accessStatus = $('#access-status');
 const officeStatus = $('#office-status');
 const catalogueStatus = $('#catalogue-status');
+let tour;
+let tourLoading;
+let tourFailed = false;
+
+function showStop(place) {
+  const names = { hall: 'The Grand Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk' };
+  $('#tour-room').textContent = names[place];
+  $('#tour-instructions').textContent = {
+    hall: 'Drag to look around. Select a bookcase or use the floor plan.',
+    west: 'History, fiction, literature, philosophy and biography. Select a book by its spine.',
+    east: 'Science, technology, business and finance. Select a book by its spine.',
+    archives: 'Reference books and works awaiting classification. Select a book by its spine.',
+    desk: 'Pick a book from a stack or the catalogue to bring it to the desk.'
+  }[place];
+  for (const control of document.querySelectorAll('[data-stop]')) {
+    if (control.dataset.stop === place) control.setAttribute('aria-current', 'location');
+    else control.removeAttribute('aria-current');
+  }
+}
+
+function showTour(visible) {
+  $('#library-tour').hidden = !visible;
+  $('.hall-hero').hidden = visible;
+  $('#library').setAttribute('aria-labelledby', visible ? 'tour-room' : 'hall-title');
+  tour?.setVisible(visible);
+}
+
+async function loadTour() {
+  if (body.classList.contains('lightweight') || tourFailed || !state.account || state.account.rotate || $('#library').hidden) {
+    showTour(false);
+    return;
+  }
+  if (!tourLoading) {
+    tourLoading = import('./library-tour.mjs').then(module => {
+      tour = module.createLibraryTour({
+        canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, onPick: openBook
+      });
+      tour.setBooks(state.books);
+    }).catch(error => {
+      console.warn('The interactive tour could not start.', error.message);
+      tourFailed = true;
+    });
+  }
+  await tourLoading;
+  if (state.account && !$('#library').hidden && !body.classList.contains('lightweight') && !tourFailed) showTour(true);
+}
+
+document.querySelectorAll('[data-stop]').forEach(control => {
+  control.addEventListener('click', () => tour?.go(control.dataset.stop));
+});
+$('#tour-canvas').addEventListener('tourunavailable', () => { tourFailed = true; showTour(false); });
+$('#tour-light').addEventListener('click', event => {
+  const control = event.currentTarget;
+  const night = control.getAttribute('aria-pressed') !== 'true';
+  control.setAttribute('aria-pressed', String(night));
+  control.textContent = night ? 'Day lighting' : 'Night lighting';
+  tour?.setLighting(night);
+});
 
 function storage(type, key, value) {
   try {
@@ -74,10 +132,13 @@ function closeLibrary(message = '') {
   setSession(null, null);
   state.books = [];
   state.categories.clear();
+  tour?.setBooks([]);
+  showTour(false);
   $('#shelf-display').replaceChildren();
   $('#member-list').replaceChildren();
   $('#office').hidden = true;
   $('#office-button').hidden = true;
+  $('#tour-office').hidden = true;
   $('#library').hidden = true;
   $('#entrance').hidden = false;
   $('#entrance').classList.remove('entering');
@@ -104,7 +165,8 @@ async function enter(animate) {
   $('#hall-title').focus({ preventScroll: true });
   window.scrollTo(0, 0);
   $('#office-button').hidden = state.account.role !== 'admin';
-  await Promise.all([loadCatalogue(), state.account.role === 'admin' && loadNotifications()]);
+  $('#tour-office').hidden = state.account.role !== 'admin';
+  await Promise.all([loadCatalogue(), loadTour(), state.account.role === 'admin' && loadNotifications()]);
 }
 
 async function submit(form, task) {
@@ -176,6 +238,7 @@ $('#lightweight').addEventListener('click', () => {
   const enabled = !body.classList.contains('lightweight');
   storage('localStorage', 'formyria-lightweight', String(enabled));
   setLightweight(enabled);
+  loadTour();
 });
 
 async function loadCatalogue() {
@@ -184,6 +247,7 @@ async function loadCatalogue() {
     const result = await request('/api/catalog');
     if (!state.account) return;
     state.books = result.books;
+    tour?.setBooks(state.books);
     state.categories = new Map(result.categories.map(category => [category.id, category.name]));
     const select = $('#genre-filter');
     select.replaceChildren(new Option('All genres', ''));
@@ -209,7 +273,13 @@ function renderShelves() {
     const button = node('button', book.title, 'spine');
     button.type = 'button';
     button.append(node('small', [book.author, book.format.toUpperCase()].filter(Boolean).join(' · ')));
-    button.addEventListener('click', () => openBook(book));
+    button.addEventListener('click', () => {
+      if ($('#library-tour').hidden || !tour) openBook(book);
+      else {
+        $('#library-tour').scrollIntoView({ behavior: 'instant' });
+        tour.stage(book);
+      }
+    });
     results.append(button);
   }
   $('#shelf-display').replaceChildren(results);
@@ -224,10 +294,11 @@ async function loadNotifications() {
   if (state.account?.role !== 'admin') return;
   try {
     const { unread } = await request('/api/admin/notifications');
-    const counter = $('#notification-count');
-    counter.hidden = unread === 0;
-    counter.textContent = String(unread);
-    counter.setAttribute('aria-label', unread + ' unread membership requests');
+    for (const counter of [$('#notification-count'), $('#tour-notifications')]) {
+      counter.hidden = unread === 0;
+      counter.textContent = String(unread);
+      counter.setAttribute('aria-label', unread + ' unread membership requests');
+    }
     $('#mark-read').disabled = unread === 0;
   } catch (error) {
     if (!$('#office').hidden) status(officeStatus, error.message, true);
@@ -290,12 +361,14 @@ async function loadMembers() {
   } catch (error) { status(officeStatus, error.message, true); }
 }
 
-$('#office-button').addEventListener('click', () => {
+function openOffice() {
   $('#office').hidden = false;
   $('#office-title').focus({ preventScroll: true });
   $('#office').scrollIntoView({ behavior: motion.matches ? 'instant' : 'smooth' });
   Promise.all([loadMembers(), loadNotifications()]);
-});
+}
+$('#office-button').addEventListener('click', openOffice);
+$('#tour-office').addEventListener('click', openOffice);
 $('#mark-read').addEventListener('click', async () => {
   try {
     await request('/api/admin/notifications', { method: 'POST' });
