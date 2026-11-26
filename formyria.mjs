@@ -119,7 +119,7 @@ async function loadTour() {
     return;
   }
   if (!tourLoading) {
-    tourLoading = import('./library-tour.mjs').then(module => {
+    tourLoading = import('./library-tour.mjs?v=9').then(module => {
       tour = module.createLibraryTour({
         canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, compact,
         onPick: book => openBook(book, true),
