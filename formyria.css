@@ -205,6 +205,15 @@ dialog .hall-actions { margin-top: 16px }
 #shared-tour-dialog > p:not(.form-status) { color: var(--soft) }
 #shared-tour-members { display: grid; gap: 5px; list-style: none; margin: 10px 0 0; padding: 0 }
 #shared-tour-members li { padding: 5px 9px; border-left: 1px solid var(--brass); background: #3c2c294f; overflow-wrap: anywhere }
+#shared-tour-members li button { width: 100%; min-height: 44px; text-align: left }
+#shared-tour-members li small { display: block; padding: 5px 9px; color: var(--soft) }
+#member-reading-dialog { max-width: 530px }
+#member-reading-name { color: var(--brass); font-weight: 700; margin-bottom: 5px }
+.reading-request { padding: 11px 14px; border: 1px solid #c09d63; background: #211c21; color: var(--ink); pointer-events: auto }
+.reading-request .office-actions { margin-top: 8px }
+.reading-request .outline, .reading-request .brass { min-height: 44px }
+#tour-reading-request-slot { position: absolute; right: clamp(12px, 4vw, 52px); top: 80px; width: min(330px, calc(100% - 24px)); z-index: 3; }
+#reader-reading-request-slot .reading-request { margin-bottom: 14px }
 [data-shared-tour].is-sharing { border-color: var(--brass); color: var(--brass) }
 .layout:target { scroll-margin-top: 12px }
 .lightweight .threshold, .lightweight .threshold-half, .lightweight .hall-hero::before { background-image: none }

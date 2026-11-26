@@ -25,7 +25,11 @@ let pendingWave = false;
 let wavedAt = -Infinity;
 let memberListText = '';
 const tourNames = { hall: 'The Grand Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery' };
-const sharedPreference = username => 'formyria-shared:' + username;
+let currentMembers = [];
+let lookingUpMember = '';
+let readingShared = '';
+let readingRequests = [];
+const dismissedRequests = new Map();
 let activeSheet;
 let sheetTrigger;
 
@@ -119,7 +123,7 @@ async function loadTour() {
     return;
   }
   if (!tourLoading) {
-    tourLoading = import('./library-tour.mjs?v=9').then(module => {
+    tourLoading = import('./library-tour.mjs?v=10').then(module => {
       tour = module.createLibraryTour({
         canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, compact,
         onPick: book => openBook(book, true),
@@ -175,24 +179,121 @@ document.querySelectorAll('[data-stop]').forEach(control => {
 });
 
 function shareLabels(members = [], message) {
+  currentMembers = members;
   const join = $('#join-shared-tour');
   join.setAttribute('aria-pressed', String(shared));
-  join.textContent = shared ? 'Leave shared tour' : 'Join shared tour';
+  join.textContent = shared ? 'Turn off shared tour' : 'Turn on shared tour';
   document.querySelectorAll('[data-shared-tour]').forEach(control => control.classList.toggle('is-sharing', shared));
   document.querySelectorAll('[data-wave]').forEach(control => { control.hidden = !presenceActive; });
   $('#meet-grand-hall').hidden = !presenceActive || members.length === 0;
   const announcement = message ?? (shared
-    ? (members.length ? members.length + (members.length === 1 ? ' other member in the tour' : ' other members in the tour') : 'You’re sharing your avatar. Ask the other member to open People and join too.')
+    ? (presenceActive
+      ? (members.length ? members.length + (members.length === 1 ? ' other member in the tour' : ' other members in the tour') : 'You’re sharing your avatar. Nobody else is in the tour yet.')
+      : 'Open the 3D tour to share your avatar.')
     : '');
   if ($('#shared-tour-status').textContent !== announcement) status($('#shared-tour-status'), announcement);
-  const labels = members.map(member => [member.username, tourNames[member.area] || tourNames.hall, member.wave ? 'waving' : ''].filter(Boolean).join(' · '));
-  const signature = labels.join('|');
+  updateReadingShare();
+  if (isDialogOpen($('#member-reading-dialog'))) renderMemberReading();
+  const details = members.map(member => {
+    const book = state.books.find(item => item.id === member.reading);
+    const place = tourNames[member.area] || tourNames.hall;
+    return [member.id, member.username, place, book?.title || '', Boolean(member.wave)];
+  });
+  const signature = JSON.stringify(details);
   if (memberListText === signature) return;
   memberListText = signature;
   const list = $('#shared-tour-members');
-  list.hidden = !labels.length;
-  list.replaceChildren(...labels.map(label => node('li', label)));
+  list.hidden = !details.length;
+  list.replaceChildren(...details.map(([id, username, place, title, waving]) => {
+    const item = node('li');
+    const button = node('button', username, 'outline');
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      lookingUpMember = id;
+      closeDialog($('#shared-tour-dialog'));
+      status($('#member-reading-status'));
+      renderMemberReading();
+      openDialog($('#member-reading-dialog'));
+    });
+    const summary = [place, title ? 'Reading ' + title : '', waving ? 'waving' : ''].filter(Boolean).join(' · ');
+    item.append(button, node('small', summary));
+    return item;
+  }));
 }
+
+function renderMemberReading() {
+  const member = currentMembers.find(item => item.id === lookingUpMember);
+  const book = member?.reading ? state.books.find(item => item.id === member.reading) : null;
+  $('#member-reading-name').textContent = member?.username || '';
+  $('#member-reading-book').textContent = book ? [book.title, book.author].filter(Boolean).join(' · ')
+    : member ? 'No book shared yet.' : 'This member has left the shared tour.';
+  $('#open-shared-book').hidden = !book;
+  $('#ask-reading').hidden = !member;
+}
+
+async function askMember() {
+  const button = $('#ask-reading');
+  const recipient = lookingUpMember;
+  button.disabled = true;
+  try {
+    await request('/api/tour/question', { method: 'POST', data: { to: recipient } });
+    if (lookingUpMember === recipient) status($('#member-reading-status'), 'Question sent.');
+  } catch (error) {
+    if (lookingUpMember === recipient) status($('#member-reading-status'), error.message, true);
+  } finally { button.disabled = false; }
+}
+
+$('#ask-reading').addEventListener('click', askMember);
+$('#open-shared-book').addEventListener('click', () => {
+  const member = currentMembers.find(item => item.id === lookingUpMember);
+  const book = state.books.find(item => item.id === member?.reading);
+  if (!book) return;
+  closeDialog($('#member-reading-dialog'));
+  goToReadingDesk(book);
+});
+
+function updateReadingShare() {
+  const button = $('#share-reading-book');
+  const isShared = Boolean(state.book && readingShared === state.book.id);
+  button.hidden = !presenceActive || !state.account?.readBooks;
+  button.setAttribute('aria-pressed', String(isShared));
+  button.textContent = isShared ? 'Stop sharing this book' : 'Share what I’m reading';
+}
+
+function setReadingShare(enabled) {
+  readingShared = enabled && state.account?.readBooks && state.book ? state.book.id : '';
+  updateReadingShare();
+  if (presenceActive) schedulePresence(0);
+}
+$('#share-reading-book').addEventListener('click', () => setReadingShare(readingShared !== state.book?.id));
+
+function showReadingRequest() {
+  const attached = isDialogOpen($('#book-dialog'));
+  const slot = $(attached ? '#reader-reading-request-slot' : '#tour-reading-request-slot');
+  const card = $('#reading-request');
+  if (card.parentElement !== slot) slot.append(card);
+  const question = readingRequests.find(item => dismissedRequests.get(item.from) !== item.time);
+  card.hidden = !presenceActive || !question;
+  if (card.hidden) return;
+  const text = question.username + ' asked what you’re reading.';
+  if ($('#reading-request-message').textContent !== text) $('#reading-request-message').textContent = text;
+  $('#reply-reading-request').hidden = !attached || !state.book || !state.account.readBooks;
+}
+
+function dismissReadingRequest() {
+  const question = readingRequests.find(item => dismissedRequests.get(item.from) !== item.time);
+  if (!question) return;
+  dismissedRequests.set(question.from, question.time);
+  showReadingRequest();
+  request('/api/tour/question', { method: 'POST', data: { dismiss: question.from } }).catch(() => {});
+}
+
+$('#dismiss-reading-request').addEventListener('click', dismissReadingRequest);
+$('#reply-reading-request').addEventListener('click', () => {
+  if (!state.book || !presenceActive) return;
+  setReadingShare(true);
+  dismissReadingRequest();
+});
 
 function presenceRequest(data, token) {
   const task = presenceTask.then(async () => {
@@ -222,18 +323,21 @@ async function sendPresence(revision) {
   const wave = pendingWave;
   pendingWave = false;
   try {
-    const { members } = await presenceRequest({ ...pose, wave }, state.token);
+    const { members, questions = [] } = await presenceRequest({ ...pose, wave, reading: readingShared }, state.token);
     if (revision !== presenceRevision) return;
     tour.setVisitors(members);
+    readingRequests = questions;
+    showReadingRequest();
     shareLabels(members);
   } catch (error) {
     if (revision !== presenceRevision) return;
     tour.setVisitors([]);
     if (error.status === 401 || error.status === 403) {
       shared = false;
-      if (state.account) storage('sessionStorage', sharedPreference(state.account.username), null);
+      readingShared = '';
+      if (state.account) state.account.sharedTour = false;
       syncSharedTour();
-      shareLabels([], 'Sign in as an approved member to join.');
+      shareLabels([], error.status === 401 ? 'Sign in as an approved member to join.' : 'The shared tour is off for this account.');
       return;
     }
     shareLabels([], 'Reconnecting to the shared tour…');
@@ -242,7 +346,7 @@ async function sendPresence(revision) {
 }
 
 function syncSharedTour() {
-  const active = Boolean(shared && state.token && tour && !$('#library-tour').hidden && !isDialogOpen($('#book-dialog')));
+  const active = Boolean(shared && state.token && tour && !$('#library-tour').hidden);
   if (active === presenceActive) return;
   presenceActive = active;
   presenceRevision++;
@@ -253,6 +357,9 @@ function syncSharedTour() {
   }
   clearTimeout(presenceTimer);
   pendingWave = false;
+  readingShared = '';
+  readingRequests = [];
+  showReadingRequest();
   tour?.setVisitors([]);
   const token = state.token;
   if (token) presenceRequest({ leave: true }, token).catch(() => {});
@@ -263,11 +370,18 @@ document.querySelectorAll('[data-shared-tour]').forEach(control => control.addEv
   closeDialog(control.closest('dialog'));
   openDialog($('#shared-tour-dialog'));
 }));
-$('#join-shared-tour').addEventListener('click', () => {
-  shared = !shared;
-  if (state.account) storage('sessionStorage', sharedPreference(state.account.username), shared ? 'true' : null);
-  syncSharedTour();
-  if (!presenceActive) shareLabels([], shared ? 'Sharing paused.' : '');
+$('#join-shared-tour').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    const { account } = await request('/api/auth/shared-tour', { method: 'PATCH', data: { enabled: !shared } });
+    state.account.sharedTour = account.sharedTour;
+    shared = account.sharedTour;
+    syncSharedTour();
+    if (!presenceActive) shareLabels([], shared ? 'Open the 3D tour to share your avatar.' : 'Shared tour is off.');
+  } catch (error) {
+    status($('#shared-tour-status'), error.message, true);
+  } finally { button.disabled = false; }
 });
 document.querySelectorAll('[data-wave]').forEach(control => control.addEventListener('click', () => {
   if (!presenceActive || performance.now() - wavedAt < 2_500) return;
@@ -421,9 +535,8 @@ function status(element, message = '', error = false) {
 }
 
 function setSession(token, account) {
-  if (!token && state.account) storage('sessionStorage', sharedPreference(state.account.username), null);
   if (account?.username !== state.account?.username) {
-    shared = Boolean(account && storage('sessionStorage', sharedPreference(account.username)) === 'true');
+    shared = Boolean(account && account.sharedTour !== false);
     shareLabels();
   }
   state.token = token;
@@ -474,6 +587,7 @@ function closeLibrary(message = '') {
   shared = false;
   syncSharedTour();
   closeDialog($('#shared-tour-dialog'));
+  closeDialog($('#member-reading-dialog'));
   setAmbience(false);
   closeDialog($('#book-dialog'));
   closeDialog($('#shelf-dialog'));
@@ -802,6 +916,7 @@ function goToReadingDesk(book) {
 function openBook(book, startReading = false) {
   tour?.stopMoving();
   state.book = book;
+  setReadingShare(false);
   activePage = 0;
   showReaderPage = null;
   selection = '';
@@ -831,6 +946,7 @@ function openBook(book, startReading = false) {
   openDialog(dialog);
   tour?.setVisible(false);
   syncSharedTour();
+  showReadingRequest();
   if (startReading && state.account.readBooks) $('#read-book').click();
 }
 
@@ -1239,6 +1355,8 @@ dialog.addEventListener('close', () => {
   readerCleanup = undefined;
   $('#reader').replaceChildren();
   state.book = null;
+  setReadingShare(false);
+  showReadingRequest();
   if (!$('#library-tour').hidden && state.account) tour?.setVisible(true);
   syncSharedTour();
 });

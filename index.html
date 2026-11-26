@@ -9,8 +9,8 @@
   <meta name="robots" content="noindex, nofollow">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://rias-library.nutmegarbor1.chatgpt.site; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>Ria’s Library · Formyria</title>
-  <link rel="stylesheet" href="./formyria.css?v=9">
-  <script src="./formyria.mjs?v=9" type="module"></script>
+  <link rel="stylesheet" href="./formyria.css?v=10">
+  <script src="./formyria.mjs?v=10" type="module"></script>
 </head>
 <body data-library-api="https://rias-library.nutmegarbor1.chatgpt.site">
   <header class="topbar">
@@ -82,6 +82,15 @@
           <button class="wand-book outline" id="wand-book" type="button" hidden></button>
           <p id="book-journey" class="book-journey" role="status" hidden></p>
           <div id="tour-book-label" class="tour-book-label" aria-hidden="true"></div>
+          <div id="tour-reading-request-slot">
+            <aside id="reading-request" class="reading-request" hidden>
+              <p id="reading-request-message" role="status"></p>
+              <div class="office-actions">
+                <button class="brass" type="button" id="reply-reading-request">Share current book</button>
+                <button class="outline" type="button" id="dismiss-reading-request">Dismiss</button>
+              </div>
+            </aside>
+          </div>
           <div class="tour-zoom" role="group" aria-label="Tour zoom">
             <button type="button" class="outline" id="zoom-out" aria-label="Zoom out">−</button>
             <button type="button" class="outline" id="zoom-in" aria-label="Zoom in">+</button>
@@ -131,6 +140,7 @@
             <a class="brass" href="#shelves">Explore the shelves <span aria-hidden="true">↓</span></a>
             <button class="outline" type="button" data-study>Private study</button>
             <button class="outline" type="button" id="office-button" hidden>Ria’s office <span id="notification-count" class="counter" hidden></span></button>
+            <button class="outline" type="button" data-shared-tour>Shared tour settings</button>
           </div>
         </div>
       </div>
@@ -220,6 +230,7 @@
       <div><p class="kicker" id="selected-format"></p><h2 class="section-title" id="book-title"></h2></div>
       <form method="dialog"><button class="outline" aria-label="Close book">Close</button></form>
     </div>
+    <div id="reader-reading-request-slot"></div>
     <p id="selected-author"></p>
     <p id="selected-description"></p>
     <div class="hall-actions">
@@ -227,6 +238,7 @@
       <button class="outline" type="button" id="download-book">Download</button>
       <button class="outline" type="button" id="favorite-book" aria-pressed="false">Save book</button>
       <button class="outline" type="button" id="locate-book" hidden>Find on shelf</button>
+      <button class="outline" type="button" id="share-reading-book" aria-pressed="false" hidden>Share what I’m reading</button>
     </div>
     <details id="reader-study" class="reader-study">
       <summary>Bookmarks, highlights and notes</summary>
@@ -310,7 +322,7 @@
       <button class="outline" type="button" id="compact-office" data-drawer-close hidden>Ria’s Office</button>
       <button class="outline" type="button" id="compact-light" aria-pressed="false" data-tour-only>Night lighting</button>
       <button class="outline" type="button" data-sound aria-pressed="false" data-tour-only>Ambience</button>
-      <button class="outline" type="button" data-shared-tour data-tour-only>Shared tour</button>
+      <button class="outline" type="button" data-shared-tour>Shared tour</button>
       <button class="outline" type="button" id="avatar-girl" data-avatar-choice="girl" hidden>Use girl avatar</button>
       <button class="outline" type="button" id="avatar-boy" data-avatar-choice="boy" hidden>Use boy avatar</button>
     </div>
@@ -320,14 +332,27 @@
       <h2 class="section-title" id="shared-tour-title">Shared tour</h2>
       <form method="dialog"><button class="outline" type="submit" aria-label="Close shared tour">Close</button></form>
     </div>
-    <p>When you join, other participants can see your username, avatar, and position in the library. Sharing pauses while you read.</p>
+    <p>The shared tour is on by default. Other approved members in the tour can see your username, avatar, and location. You choose whether to share a book title.</p>
     <div class="office-actions">
-      <button class="brass" type="button" id="join-shared-tour" aria-pressed="false">Join shared tour</button>
+      <button class="brass" type="button" id="join-shared-tour" aria-pressed="false">Turn on shared tour</button>
       <button class="outline" type="button" data-wave hidden>Wave</button>
       <button class="outline" type="button" id="meet-grand-hall" hidden>Meet in Grand Hall</button>
     </div>
     <p id="shared-tour-status" class="form-status" role="status"></p>
     <ul id="shared-tour-members" aria-label="Members in the shared tour" hidden></ul>
+  </dialog>
+  <dialog class="library-sheet" id="member-reading-dialog" aria-labelledby="member-reading-title">
+    <div class="book-dialog-header">
+      <h2 class="section-title" id="member-reading-title">What are you reading?</h2>
+      <form method="dialog"><button class="outline" type="submit" aria-label="Close reading popup">Close</button></form>
+    </div>
+    <p id="member-reading-name"></p>
+    <p id="member-reading-book"></p>
+    <div class="office-actions">
+      <button class="brass" type="button" id="open-shared-book" hidden>Open book</button>
+      <button class="outline" type="button" id="ask-reading">Ask what they’re reading</button>
+    </div>
+    <p id="member-reading-status" class="form-status" role="status"></p>
   </dialog>
   <div id="sheet-backdrop" aria-hidden="true" hidden></div>
 </body>
