@@ -49,7 +49,15 @@ async function loadTour() {
   if (!tourLoading) {
     tourLoading = import('./library-tour.mjs').then(module => {
       tour = module.createLibraryTour({
-        canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, onPick: openBook, compact,
+        canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, compact,
+        onPick: book => openBook(book, true),
+        onJourney(book) {
+          const notice = $('#book-journey');
+          notice.hidden = !book;
+          notice.textContent = book ? 'Taking “' + book.title + '” to the desk…' : '';
+          $('#wand-book').disabled = Boolean(book);
+          $('#wand-target').hidden = Boolean(book);
+        },
         getCover: async book => (await request(filePath(book, 'cover'), { raw: true })).blob(),
         getPortrait: async () => (await request('/api/art/portrait', { raw: true })).blob(),
         hasPortrait: available => { document.querySelectorAll('[data-stop="portrait"]').forEach(button => { button.hidden = !available; }); },
@@ -100,7 +108,7 @@ $('#compact-shelf-prev').addEventListener('click', () => tour?.page(-1));
 $('#compact-shelf-next').addEventListener('click', () => tour?.page(1));
 $('#zoom-in').addEventListener('click', () => tour?.zoom(-8));
 $('#zoom-out').addEventListener('click', () => tour?.zoom(8));
-$('#wand-book').addEventListener('click', () => { if (aimedBook) openBook(aimedBook); });
+$('#wand-book').addEventListener('click', () => { if (aimedBook) goToReadingDesk(aimedBook); });
 $('#map-menu-button').addEventListener('click', () => $('#tour-map-dialog').showModal());
 $('#tour-menu-button').addEventListener('click', () => $('#tour-menu-dialog').showModal());
 $('#walk-menu-button').addEventListener('click', event => {
@@ -117,7 +125,7 @@ function setShelfChoices() {
     const button = node('button', book.title, 'outline');
     button.type = 'button';
     button.append(node('small', [book.author, book.format.toUpperCase()].filter(Boolean).join(' · ')));
-    button.addEventListener('click', () => { dialog.close(); openBook(book); });
+    button.addEventListener('click', () => { dialog.close(); goToReadingDesk(book); });
     return button;
   });
   $('#shelf-dialog-list').replaceChildren(...choices);
@@ -438,13 +446,7 @@ function renderShelves() {
     const button = node('button', book.title, 'spine');
     button.type = 'button';
     button.append(node('small', [book.author, book.format.toUpperCase()].filter(Boolean).join(' · ')));
-    button.addEventListener('click', () => {
-      if ($('#library-tour').hidden || !tour || compact.matches) openBook(book);
-      else {
-        $('#library-tour').scrollIntoView({ behavior: 'instant' });
-        tour.stage(book);
-      }
-    });
+    button.addEventListener('click', () => goToReadingDesk(book));
     results.append(button);
   }
   $('#shelf-display').replaceChildren(results);
@@ -555,7 +557,7 @@ function displayStudy() {
     button.type = 'button';
     const label = mode === 'collections' ? item.collections.join(' · ') : mode === 'recent' ? 'Page ' + item.page + ' of ' + item.total : book.author;
     button.append(node('small', label || book.format.toUpperCase()));
-    button.addEventListener('click', () => openBook(book));
+    button.addEventListener('click', () => goToReadingDesk(book));
     return button;
   });
   $('#study-books').replaceChildren(...results);
@@ -592,7 +594,13 @@ let readerText;
 let findController;
 const readingDefaults = () => ({ page: 1, total: 1, favorite: false, collections: [], bookmarks: [], notes: [] });
 
-function openBook(book) {
+function goToReadingDesk(book) {
+  if (!tour || $('#library-tour').hidden) { openBook(book); return; }
+  $('#library-tour').scrollIntoView({ behavior: 'instant' });
+  tour.stage(book, undefined, compact.matches);
+}
+
+function openBook(book, startReading = false) {
   tour?.stopMoving();
   state.book = book;
   activePage = 0;
@@ -623,6 +631,7 @@ function openBook(book) {
   }).catch(error => { if (state.book === book) status($('#study-book-status'), error.message, true); });
   dialog.showModal();
   tour?.setVisible(false);
+  if (startReading && state.account.readBooks) $('#read-book').click();
 }
 
 function filePath(book, intent) {

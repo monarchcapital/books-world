@@ -400,7 +400,7 @@ function disposeGroup(group) {
   group.clear();
 }
 
-export function createLibraryTour({ canvas, message, onStop, onPick, compact, getCover, onPage, hasPortrait, getPortrait, onAim }) {
+export function createLibraryTour({ canvas, message, onStop, onPick, compact, getCover, onPage, hasPortrait, getPortrait, onAim, onJourney }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.65));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -584,10 +584,11 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     if (!frame) frame = requestAnimationFrame(animate);
   }
 
-  function go(id, complete) {
+  function go(id, complete, travel) {
     const destination = stops.find(place => place.id === id);
     if (!destination) return;
     stopMoving();
+    if (!complete) onJourney?.(undefined);
     if (lifted && !complete) {
       scene.remove(lifted);
       openedCover?.dispose();
@@ -609,7 +610,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     const nextAim = vector(stop.look);
     const way = new THREE.Vector3(0, origin.y, (origin.z + next.z) / 2);
     const curve = new THREE.QuadraticBezierCurve3(origin, way, next);
-    transition(id === 'desk' ? 970 : 1160, fraction => {
+    transition(travel ?? (id === 'desk' ? 970 : 1160), fraction => {
       camera.position.copy(curve.getPoint(fraction));
       aim.lerpVectors(oldAim, nextAim, fraction);
       camera.lookAt(aim);
@@ -619,7 +620,14 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
   }
 
   function stage(book, model, touch = false) {
-    if (paused || touch || compact?.matches) return onPick(book);
+    if (paused) return onPick(book);
+    const quick = touch || compact?.matches;
+    onJourney?.(book);
+    if (!model) {
+      const nearby = selected.find(item => item.userData.book?.id === book.id && item.parent.visible &&
+        item.getWorldPosition(new THREE.Vector3()).distanceTo(camera.position) < 4);
+      model = nearby?.userData.model;
+    }
     const from = model ? model.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(0, 1.5, -7.6);
     const material = new THREE.MeshStandardMaterial({ color: colours[book.title.length % colours.length], roughness: .72 });
     const bookModel = new THREE.Group();
@@ -678,11 +686,11 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       bookModel.rotation.x = -.35;
       lifted = bookModel;
       scene.add(bookModel);
-      transition(1100, amount => {
+      transition(quick ? 450 : 1100, amount => {
         bookModel.position.y = resting.y + Math.sin(amount * Math.PI) * .08;
         pivot.rotation.y = -amount * Math.PI * .84;
         cover.material.needsUpdate = false;
-      }, () => onPick(book));
+      }, () => { onJourney?.(undefined); onPick(book); });
     };
     if (stop.id === 'desk') { pick(); return; }
     if (model) {
@@ -692,14 +700,14 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       scene.add(bookModel);
       const pulled = from.clone().lerp(camera.position, .24);
       const turn = new THREE.Vector3().subVectors(camera.position, from).normalize();
-      transition(650, amount => {
+      transition(quick ? 220 : 650, amount => {
         bookModel.position.lerpVectors(from, pulled, amount);
         bookModel.rotation.y = amount * Math.atan2(turn.x, turn.z);
       }, () => {
         scene.remove(bookModel);
-        go('desk', pick);
+        go('desk', pick, quick ? 580 : undefined);
       });
-    } else go('desk', pick);
+    } else go('desk', pick, quick ? 580 : undefined);
   }
 
   const inArea = (book, id) => shelfAreas[id].includes(book.genre || '') || (id === 'archives' && !Object.values(shelfAreas).flat().includes(book.genre));
