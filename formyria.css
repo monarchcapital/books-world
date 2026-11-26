@@ -82,6 +82,8 @@ input::placeholder { color: #b3a089 }
 .tour-map [aria-current] { border-color: var(--brass); color: var(--brass) }
 .tour-actions { grid-row: 3; grid-column: 1; display: flex; flex-wrap: wrap; gap: 8px; align-self: end }
 .tour-actions .outline { background: #1b140fe8 }
+.tour-page { display: inline-flex; align-items: center; gap: 8px; padding: 1px; padding-inline: 3px; background: #17110def; color: var(--soft); font-size: 12px }
+.tour-page .outline { min-width: 35px; min-height: 35px; padding: 3px; font-size: 17px }
 .tour-book-label { grid-column: 1; grid-row: 2; align-self: end; max-width: 350px; padding: 6px 12px; background: #160d08df; color: #fff0d4; font: 18px/1.35 var(--serif) }
 .tour-book-label:empty { display: none }
 .shelves, .office { padding-block: 52px 76px }

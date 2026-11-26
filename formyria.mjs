@@ -43,7 +43,14 @@ async function loadTour() {
   if (!tourLoading) {
     tourLoading = import('./library-tour.mjs').then(module => {
       tour = module.createLibraryTour({
-        canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, onPick: openBook
+        canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, onPick: openBook,
+        getCover: async book => (await request(filePath(book, 'cover'), { raw: true })).blob(),
+        onPage(index, total) {
+          $('#tour-page').hidden = total < 2;
+          $('#tour-page-label').textContent = 'Shelf ' + (index + 1) + ' of ' + total;
+          $('#tour-prev').disabled = index === 0;
+          $('#tour-next').disabled = index + 1 >= total;
+        }
       });
       tour.setBooks(state.books);
     }).catch(error => {
@@ -59,6 +66,8 @@ document.querySelectorAll('[data-stop]').forEach(control => {
   control.addEventListener('click', () => tour?.go(control.dataset.stop));
 });
 $('#tour-canvas').addEventListener('tourunavailable', () => { tourFailed = true; showTour(false); });
+$('#tour-prev').addEventListener('click', () => tour?.page(-1));
+$('#tour-next').addEventListener('click', () => tour?.page(1));
 $('#tour-light').addEventListener('click', event => {
   const control = event.currentTarget;
   const night = control.getAttribute('aria-pressed') !== 'true';

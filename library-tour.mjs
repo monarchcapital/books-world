@@ -108,7 +108,7 @@ function shelf(scene, x, z, side, id, targets) {
   }
   panel(object, trim, [width + .31, .21, .84], [0, 4.55, .01]);
   panel(object, trim, [width + .14, .14, .79], [0, .10, .01]);
-  const hot = panel(object, new THREE.MeshBasicMaterial({ visible: false }), [width - .15, 3.7, .025], [0, 2.07, .36]);
+  const hot = panel(object, new THREE.MeshBasicMaterial({ visible: false }), [width - .15, 3.7, .025], [0, 2.07, .12]);
   hot.userData.stop = id;
   targets.push(hot);
   const contents = new THREE.Group();
@@ -195,7 +195,7 @@ function disposeGroup(group) {
   group.clear();
 }
 
-export function createLibraryTour({ canvas, message, onStop, onPick }) {
+export function createLibraryTour({ canvas, message, onStop, onPick, getCover, onPage }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.65));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -221,6 +221,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick }) {
   let paused = true;
   let lifted;
   let behind;
+  let openedCover;
   camera.position.copy(vector(stop.position));
   camera.lookAt(aim);
 
@@ -265,16 +266,21 @@ export function createLibraryTour({ canvas, message, onStop, onPick }) {
   function go(id, complete) {
     const destination = stops.find(place => place.id === id);
     if (!destination) return;
-    if (lifted) {
+    if (lifted && !complete) {
       scene.remove(lifted);
+      openedCover?.dispose();
+      openedCover = undefined;
       lifted = undefined;
     }
     if (behind) {
       behind.visible = true;
       behind = undefined;
     }
+    const changedRoom = stop.id !== destination.id;
     stop = destination;
     onStop(stop.id);
+    if (changedRoom && shelfIndex !== 0) setBooks(stored);
+    else onPage?.(shelfIndex, pageCount(stop.id));
     const origin = camera.position.clone();
     const next = vector(stop.position);
     const oldAim = aim.clone();
@@ -326,6 +332,22 @@ export function createLibraryTour({ canvas, message, onStop, onPick }) {
     const face = new THREE.Mesh(new THREE.PlaneGeometry(.389, .563), new THREE.MeshStandardMaterial({ map: jacket, roughness: .86 }));
     face.position.set(.21, .30, .03);
     pivot.add(face);
+    if (lifted) scene.remove(lifted);
+    openedCover?.dispose();
+    openedCover = jacket;
+    if (book.cover && getCover) {
+      getCover(book).then(blob => createImageBitmap(blob)).then(bitmap => {
+        const context = label.getContext('2d');
+        const ratio = Math.min(256 / bitmap.width, 352 / bitmap.height);
+        const w = bitmap.width * ratio;
+        const h = bitmap.height * ratio;
+        context.fillStyle = '#231914';
+        context.fillRect(0, 0, 256, 352);
+        context.drawImage(bitmap, (256 - w) / 2, (352 - h) / 2, w, h);
+        bitmap.close();
+        if (openedCover === jacket) { jacket.needsUpdate = true; draw(); }
+      }).catch(() => {});
+    }
     const pick = () => {
       const resting = new THREE.Vector3(-.22, 1.13, -7.94);
       bookModel.position.copy(resting);
@@ -349,17 +371,24 @@ export function createLibraryTour({ canvas, message, onStop, onPick }) {
       transition(650, amount => {
         bookModel.position.lerpVectors(from, pulled, amount);
         bookModel.rotation.y = amount * Math.atan2(turn.x, turn.z);
-      }, () => go('desk', pick));
+      }, () => {
+        scene.remove(bookModel);
+        go('desk', pick);
+      });
     } else go('desk', pick);
   }
 
+  const inArea = (book, id) => shelfAreas[id].includes(book.genre || '') || (id === 'archives' && !Object.values(shelfAreas).flat().includes(book.genre));
+  function pageCount(id) {
+    return Object.hasOwn(shelfAreas, id) ? Math.ceil(stored.filter(book => inArea(book, id)).length / 45) : 0;
+  }
   function setBooks(books, page = 0) {
     stored = books;
     shelfIndex = page;
     selected = [];
     for (const [id, shelf] of Object.entries(shelves)) {
       disposeGroup(shelf);
-      const matching = books.filter(book => shelfAreas[id].includes(book.genre || '') || (id === 'archives' && !Object.values(shelfAreas).flat().includes(book.genre)));
+      const matching = books.filter(book => inArea(book, id));
       const pageBooks = matching.slice(page * 45, page * 45 + 45);
       pageBooks.forEach((book, i) => {
         const row = Math.floor(i / 15);
@@ -370,6 +399,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick }) {
         selected.push(cover);
       });
     }
+    onPage?.(shelfIndex, pageCount(stop.id));
     draw();
   }
 
@@ -430,7 +460,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick }) {
 
   return {
     go, stage, setBooks,
-    page: step => setBooks(stored, Math.max(0, Math.min(shelfIndex + step, Math.floor((stored.length - 1) / 45)))),
+    page: step => setBooks(stored, Math.max(0, Math.min(shelfIndex + step, pageCount(stop.id) - 1))),
     setVisible(visible) { paused = !visible; if (visible) resize(); },
     setLighting(night) { renderer.toneMappingExposure = night ? .58 : 1.12; draw(); }
   };
