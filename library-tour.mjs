@@ -1,13 +1,18 @@
 import * as THREE from './three.module.min.js';
+import { buildCastle, castleRoom, roomAt, walkable } from './castle-world.mjs';
 
 const stops = [
+  { id: 'gate', position: [0, 1.97, 45.45], look: [0, .19, 36] },
+  { id: 'castle', position: [0, 1.97, 34.1], look: [0, .22, 24.4] },
   { id: 'hall', name: 'Grand Hall', position: [0, 1.65, 11.5], look: [0, 2.6, -6] },
   { id: 'west', name: 'West Stacks', position: [-2.25, 1.68, 4.4], look: [-4.85, 2.02, 4.4] },
   { id: 'east', name: 'East Gallery', position: [2.25, 1.68, -.3], look: [4.85, 2.02, -.3] },
   { id: 'archives', name: 'The Archives', position: [-2.25, 1.68, -5], look: [-4.85, 2.02, -5] },
   { id: 'desk', name: 'Reading Desk', position: [0, 1.65, -6.1], look: [0, 1.05, -8.7] },
   { id: 'portrait', name: 'Portrait Gallery', position: [3.65, 2.22, -10.2], look: [3.6, 2.82, -13.28] },
-  { id: 'court', name: 'Sunstone Court', position: [0, 1.65, 7.4], look: [0, 1.9, -4.3] }
+  { id: 'orrery', position: [-15.45, 1.85, 24.0], look: [-20, .89, 24.0] },
+  { id: 'conservatory', position: [15.45, 1.85, 24.0], look: [22.8, .43, 24.0] },
+  { id: 'court', name: 'Sunstone Court', position: [20, 1.91, 15.3], look: [20, .3, 6.9] },
 ];
 
 const shelfAreas = {
@@ -315,9 +320,11 @@ function lamp(parent, x, y, z, glow = 3.2) {
   rim.rotation.x = -Math.PI / 2;
   rim.position.set(x, y + .286, z);
   parent.add(rim);
-  const light = new THREE.PointLight(0xffc991, glow, 7, 1.65);
-  light.position.set(x, y + .28, z);
-  parent.add(light);
+  if (glow > 0) {
+    const light = new THREE.PointLight(0xffc991, glow, 7, 1.65);
+    light.position.set(x, y + .28, z);
+    parent.add(light);
+  }
 }
 
 function shelf(scene, x, z, side, id, targets) {
@@ -625,11 +632,10 @@ function buildCourtyard(room) {
     room.add(orbit);
   }
   panel(room, materials.wall, [1.65, .16, 1.52], [0, .08, -5.25]);
-  room.add(new THREE.HemisphereLight(0xffe3b5, 0x756c55, 2.8));
   return lens;
 }
 
-export function createLibraryTour({ canvas, message, onStop, onPick, compact, getCover, onPage, hasPortrait, getPortrait, onAim, onJourney }) {
+export function createLibraryTour({ canvas, message, onStop, onPick, compact, getCover, onPage, hasPortrait, getPortrait, onAim, onJourney, onActivity, onThreshold }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.65));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -637,21 +643,41 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
   renderer.toneMappingExposure = 1.34;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x261b15);
-  scene.fog = new THREE.FogExp2(0x2e211a, .019);
+  scene.fog = new THREE.FogExp2(0x2e211a, .027);
   const camera = new THREE.PerspectiveCamera(61, 1, .065, 80);
   const targets = [];
   const library = new THREE.Group();
   const court = new THREE.Group();
   scene.add(library, court);
-  court.visible = false;
   const { spaces: shelves, alcoves, flames, sun, sky, stainedLight } = space(library, targets, draw);
+  court.position.set(20, 0, 3);
   const courtLens = buildCourtyard(court);
+  const castle = buildCastle(scene, {
+    panel, arch, lancet, lamp, stone, timber, brass,
+    floorMap: stone.map, seed: { value: 64415 },
+  });
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let stop = stops[0];
-  const wing = id => id === 'court' ? id : 'library';
   let aim = vector(stop.look);
+  const avatarPosition = new THREE.Vector3(0, 0, 42.20);
+  const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const shadowSurface = Object.assign(document.createElement('canvas'), { width: 64, height: 64 });
+  const shadowContext = shadowSurface.getContext('2d');
+  const shadowGradient = shadowContext.createRadialGradient(32, 32, 3, 32, 32, 31);
+  shadowGradient.addColorStop(0, '#070506aa');
+  shadowGradient.addColorStop(1, '#07050600');
+  shadowContext.fillStyle = shadowGradient;
+  shadowContext.fillRect(0, 0, 64, 64);
+  const footprint = new THREE.Mesh(new THREE.PlaneGeometry(.95, .69), new THREE.MeshBasicMaterial({
+    map: new THREE.CanvasTexture(shadowSurface), transparent: true, depthWrite: false, toneMapped: false,
+  }));
+  footprint.rotation.x = -Math.PI / 2;
+  scene.add(footprint);
+  let waypoint;
+  let nearbyDoor = -1;
+  let thresholdDestination;
   let animation = null;
   let selected = [];
   let stored = [];
@@ -683,8 +709,15 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
   function follow(distance = 1.9) {
     if (!walker) return;
     const forward = heading();
-    const ahead = camera.position.clone().addScaledVector(forward, distance);
-    walker.root.position.set(THREE.MathUtils.clamp(ahead.x, -4.30, 4.30), 0, THREE.MathUtils.clamp(ahead.z, -12.7, 12.0));
+    const ahead = camera.position.clone();
+    for (let stride = .25; stride <= distance; stride += .25) {
+      const x = camera.position.x + stride * forward.x;
+      const z = camera.position.z + stride * forward.z;
+      if (!walkable(x, z)) break;
+      ahead.set(x, 0, z);
+    }
+    if (walkable(ahead.x, ahead.z)) avatarPosition.set(ahead.x, 0, ahead.z);
+    walker.root.position.copy(avatarPosition);
     walker.root.rotation.y = Math.atan2(forward.x, forward.z);
     walker.root.visible = stop.id !== 'desk';
   }
@@ -696,15 +729,18 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     }
     walker = person(selection);
     scene.add(walker.root);
-    follow(2.8);
+    walker.root.position.copy(avatarPosition);
+    const forward = heading();
+    walker.root.rotation.y = Math.atan2(forward.x, forward.z);
     draw();
   }
 
   function presencePose() {
     if (!walker) return;
     return {
-      x: walker.root.position.x, z: walker.root.position.z, facing: walker.root.rotation.y,
-      area: stop.id, walking: Boolean(moving.size || animation)
+      x: walker.root.position.x, z: walker.root.position.z,
+      facing: Math.atan2(Math.sin(walker.root.rotation.y), Math.cos(walker.root.rotation.y)),
+      area: stop.id, world: true, walking: Boolean(moving.size || waypoint || animation)
     };
   }
 
@@ -733,14 +769,15 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       if (!visitor) {
         const avatar = person(member.avatar);
         const label = visitorLabel(member.username);
-        avatar.root.position.set(member.x, 0, member.z);
+        const origin = member.world || member.area !== 'court' ? member : { x: member.x + 20, z: member.z + 3 };
+        avatar.root.position.set(origin.x, 0, origin.z);
         avatar.root.rotation.y = member.facing;
-        label.position.set(member.x, 1.44, member.z);
+        label.position.set(origin.x, 1.44, origin.z);
         scene.add(avatar.root, label);
         visitor = { avatar, label, selection: member.avatar, offset: parseInt(member.id.slice(0, 2), 16) % 2 ? .53 : -.53, wave: 0, waveFrom: -Infinity };
         visitors.set(member.id, visitor);
       }
-      visitor.pose = member;
+      visitor.pose = member.world || member.area !== 'court' ? member : { ...member, x: member.x + 20, z: member.z + 3 };
       if (member.wave && visitor.wave !== member.wave) {
         visitor.wave = member.wave;
         visitor.waveFrom = performance.now();
@@ -751,10 +788,10 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
 
   function animateVisitors(time, delta) {
     for (const { avatar, label, pose, offset, waveFrom } of visitors.values()) {
-      avatar.root.visible = label.visible = wing(pose.area) === wing(stop.id);
+      avatar.root.visible = label.visible = Math.hypot(pose.x - avatarPosition.x, pose.z - avatarPosition.z) < 35;
       const blend = reduced.matches ? 1 : 1 - Math.exp(-5.2 * delta);
       const besideWalker = walker && Math.hypot(pose.x - walker.root.position.x, pose.z - walker.root.position.z) < .38;
-      const targetX = besideWalker ? THREE.MathUtils.clamp(pose.x + offset, -4.26, 4.26) : pose.x;
+      const targetX = besideWalker && walkable(pose.x + offset, pose.z) ? pose.x + offset : pose.x;
       avatar.root.position.x = THREE.MathUtils.lerp(avatar.root.position.x, targetX, blend);
       avatar.root.position.z = THREE.MathUtils.lerp(avatar.root.position.z, pose.z, blend);
       const turn = pose.facing - avatar.root.rotation.y;
@@ -772,32 +809,91 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     const right = new THREE.Vector3(-forward.z, 0, forward.x);
     const forwardStep = Number(moving.has('forward')) - Number(moving.has('back'));
     const sideStep = Number(moving.has('right')) - Number(moving.has('left'));
-    const direction = forward.multiplyScalar(forwardStep).addScaledVector(right, sideStep).normalize();
-    if (!direction.lengthSq()) return;
-    const before = camera.position.clone();
-    const next = before.clone().addScaledVector(direction, delta * 2.35);
-    next.x = THREE.MathUtils.clamp(next.x, -4.15, 4.15);
-    next.z = THREE.MathUtils.clamp(next.z, -11.9, 12.35);
-    if (wing(stop.id) === 'library' && Math.abs(next.x) < 1.65 && next.z < -7.78 && next.z > -9.18) next.z = before.z;
-    camera.position.copy(next);
-    aim.add(next.clone().sub(before));
-    camera.lookAt(aim);
-    follow(2.48);
+    const headingBefore = aim.clone().sub(camera.position).normalize();
+    const direction = waypoint ? waypoint.clone().sub(avatarPosition).setY(0)
+      : forward.multiplyScalar(forwardStep).addScaledVector(right, sideStep);
+    const distance = direction.length();
+    if (distance < .08) { waypoint = undefined; return; }
+    direction.multiplyScalar(1 / distance);
+    const stride = Math.min(distance, delta * 4.30);
+    const x = avatarPosition.x, z = avatarPosition.z;
+    if (walkable(x + direction.x * stride, z)) avatarPosition.x += direction.x * stride;
+    if (walkable(avatarPosition.x, z + direction.z * stride)) avatarPosition.z += direction.z * stride;
+    const travelled = Math.hypot(avatarPosition.x - x, avatarPosition.z - z);
+    if (!travelled || distance < stride) waypoint = undefined;
+    castleView(headingBefore);
     if (walker) {
+      const turnTo = Math.atan2(direction.x, direction.z);
+      const turn = turnTo - walker.root.rotation.y;
+      walker.root.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) *
+        (reduced.matches ? 1 : Math.min(1, delta * 13));
+      walker.root.position.x = avatarPosition.x;
+      walker.root.position.z = avatarPosition.z;
       walker.root.visible = true;
-      walker.root.rotation.y = Math.atan2(direction.x, direction.z);
-      walker.pace(delta, true, reduced.matches);
+      walker.pace(delta, travelled > .00001, reduced.matches);
     }
+    const area = roomAt(avatarPosition.x, avatarPosition.z);
+    if (area !== stop.id) {
+      const next = stops.find(place => place.id === area);
+      if (next) setStop(next);
+    }
+    syncThreshold();
+  }
+
+  function castleView(view) {
+    const behind = view.clone().setY(0).normalize();
+    let position = avatarPosition.clone();
+    for (let offset = .20; offset <= 3.26; offset += .20) {
+      const candidate = avatarPosition.clone().addScaledVector(behind, -offset);
+      if (!walkable(candidate.x, candidate.z)) break;
+      position = candidate;
+    }
+    const distance = position.distanceTo(avatarPosition);
+    camera.position.set(position.x, 1.34 + .19 * distance, position.z);
+    aim = camera.position.clone().addScaledVector(view, 11);
+    camera.lookAt(aim);
+  }
+
+  function syncThreshold() {
+    const index = castle.doors.findIndex(door => Math.hypot(door.x - avatarPosition.x, door.z - avatarPosition.z) < 3.5);
+    const door = castle.doors[index];
+    const group = castleRoom(stop.id);
+    const destination = door ? door.rooms.find(room => room !== group) : undefined;
+    if (nearbyDoor === index && thresholdDestination === destination) return;
+    nearbyDoor = index;
+    thresholdDestination = destination;
+    onThreshold?.(destination);
+  }
+
+  function traverse(index = nearbyDoor) {
+    const door = castle.doors[index];
+    if (!door || Math.hypot(door.x - avatarPosition.x, door.z - avatarPosition.z) > 5.1 || animation) return;
+    const alongX = index === 2 || index === 3;
+    const offset = alongX ? Math.sign(avatarPosition.x - door.x) : Math.sign(avatarPosition.z - door.z);
+    const exit = alongX ? new THREE.Vector3(door.x - offset * 2.25, 0, door.z)
+      : new THREE.Vector3(door.x, 0, door.z - offset * 2.25);
+    moving.clear();
+    door.openUntil = performance.now() + 2500;
+    waypoint = exit;
+    if (!paused && !frame) frame = requestAnimationFrame(animate);
   }
 
   function movement(direction, value) {
-    if (value) moving.add(direction);
+    if (value) {
+      waypoint = undefined;
+      // A short tap still advances the avatar one step on a touchscreen.
+      if (!moving.has(direction)) {
+        moving.add(direction);
+        if (!paused && !animation) walk(.065);
+      }
+    }
     else moving.delete(direction);
     if (!frame && !paused) frame = requestAnimationFrame(animate);
   }
 
   function stopMoving() {
     moving.clear();
+    waypoint = undefined;
     if (walker) walker.pace(0, false, reduced.matches);
     draw();
   }
@@ -829,6 +925,8 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
 
   function draw() {
     if (paused) return;
+    footprint.position.set(avatarPosition.x, .024, avatarPosition.z);
+    footprint.visible = Boolean(walker?.root.visible);
     renderer.render(scene, camera);
     if (compact?.matches && onAim && performance.now() - lastAim > 75) {
       const bounds = canvas.getBoundingClientRect();
@@ -860,12 +958,13 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
         animation = null;
         active.done?.();
       }
-    } else if (moving.size) walk(delta);
+    } else if (moving.size || waypoint) walk(delta);
     else if (walker) walker.pace(0, false, reduced.matches);
+    castle.update(avatarPosition, time, delta, reduced.matches);
     animateVisitors(time, delta);
     const idleLights = !document.hidden && !reduced.matches;
     const social = !document.hidden && (visitors.size || time - localWave < 1_480);
-    if (((idleLights || social) && time - lastPaint >= 32) || active || moving.size || !lastPaint) {
+    if (((idleLights || social) && time - lastPaint >= 32) || active || moving.size || waypoint || !lastPaint) {
       if (idleLights) {
         courtLens.rotation.y = time * .00043;
         for (const flame of flames) {
@@ -876,7 +975,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       draw();
       lastPaint = time;
     }
-    if ((animation || moving.size || idleLights || social) && !frame) frame = requestAnimationFrame(animate);
+    if ((animation || moving.size || waypoint || idleLights || social) && !frame) frame = requestAnimationFrame(animate);
     else lastFrame = 0;
   }
 
@@ -889,6 +988,18 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     }
     animation = { start: performance.now(), duration, update, done };
     if (!frame) frame = requestAnimationFrame(animate);
+  }
+
+  function setStop(destination) {
+    const changedRoom = stop.id !== destination.id;
+    stop = destination;
+    const outside = stop.id === 'gate' || stop.id === 'court';
+    const atmosphere = outside ? 0x374554 : 0x292021;
+    scene.background.setHex(atmosphere);
+    scene.fog.color.setHex(atmosphere);
+    onStop(stop.id);
+    if (changedRoom && shelfIndex !== 0) setBooks(stored);
+    else announcePage();
   }
 
   function go(id, complete, travel) {
@@ -906,26 +1017,19 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       behind.visible = true;
       behind = undefined;
     }
-    const changedRoom = stop.id !== destination.id;
-    const changedWing = wing(stop.id) !== wing(id);
-    stop = destination;
-    library.visible = wing(id) === 'library';
-    court.visible = id === 'court';
-    const atmosphere = court.visible ? 0x8b9aac : 0x261b15;
-    scene.background.setHex(atmosphere);
-    scene.fog.color.setHex(atmosphere);
-    onStop(stop.id);
-    if (changedRoom && shelfIndex !== 0) setBooks(stored);
-    else announcePage();
+    const changedWing = castleRoom(stop.id) !== castleRoom(id);
+    setStop(destination);
     const origin = camera.position.clone();
     const next = vector(stop.position);
     const oldAim = aim.clone();
     const nextAim = vector(stop.look);
     if (changedWing) {
+      animation = null;
       camera.position.copy(next);
       aim.copy(nextAim);
       camera.lookAt(aim);
-      follow();
+      follow(id === 'gate' ? 3.25 : castleRoom(id) === 'hall' ? 1.9 : 2.55);
+      syncThreshold();
       complete?.();
       draw();
       return;
@@ -936,9 +1040,9 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       camera.position.copy(curve.getPoint(fraction));
       aim.lerpVectors(oldAim, nextAim, fraction);
       camera.lookAt(aim);
-      follow(id === 'hall' ? 2.8 : 1.90);
+      follow(id === 'gate' ? 3.25 : id === 'hall' ? 2.8 : 1.90);
       walker?.pace(.05, fraction < 1, reduced.matches);
-    }, complete);
+    }, () => { syncThreshold(); complete?.(); });
   }
 
   function stage(book, model, touch = false) {
@@ -1095,9 +1199,17 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     const bounds = canvas.getBoundingClientRect();
     pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
-    const view = raycaster.intersectObjects(library.visible ? [...selected, ...targets] : [], false);
+    const inLibrary = castleRoom(stop.id) === 'hall';
+    const destination = castle.targets.filter(object => {
+      if (object.userData.door !== undefined) {
+        const door = castle.doors[object.userData.door];
+        return Math.hypot(door.x - avatarPosition.x, door.z - avatarPosition.z) < 5.1;
+      }
+      return object.userData.activity === stop.id;
+    });
+    const view = raycaster.intersectObjects(inLibrary ? [...selected, ...targets, ...destination] : destination, false);
     const hit = view.find(candidate => candidate.object.visible && candidate.object.parent?.visible)?.object;
-    if (event.pointerType !== 'touch' || !library.visible || hit?.userData.book) return hit;
+    if (event.pointerType !== 'touch' || !inLibrary || hit?.userData.book) return hit;
     let closest = hit;
     let distance = 18;
     for (const spine of selected) {
@@ -1120,8 +1232,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     const spherical = new THREE.Spherical().setFromVector3(direction);
     spherical.theta -= x * .005;
     spherical.phi = THREE.MathUtils.clamp(spherical.phi - y * .004, .35, 2.48);
-    aim = new THREE.Vector3().setFromSpherical(spherical).add(camera.position);
-    camera.lookAt(aim);
+    castleView(new THREE.Vector3().setFromSpherical(spherical).normalize());
   }
   function fingerGeometry() {
     const [a, b] = [...fingers.values()];
@@ -1161,7 +1272,8 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       }
     } else if (!animation) {
       const object = target(event);
-      const title = object?.userData.book?.title || (object?.userData.stop === 'portrait' ? 'View the framed portrait' : '');
+      const title = object?.userData.book?.title || (object?.userData.stop === 'portrait' ? 'View the framed portrait'
+        : object?.userData.door !== undefined ? 'Walk through the doorway' : object?.userData.activity ? 'Use this station' : '');
       canvas.classList.toggle('can-pick', Boolean(object));
       message.textContent = title || '';
     }
@@ -1173,18 +1285,30 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     if (press && !press.moved && !animation) {
       const object = target(event);
       if (object?.userData.book) stage(object.userData.book, object.userData.model, event.pointerType === 'touch');
+      else if (object?.userData.door !== undefined) traverse(object.userData.door);
+      else if (object?.userData.activity) onActivity?.(object.userData.activity);
       else if (object?.userData.stop) go(object.userData.stop);
+      else {
+        const point = raycaster.ray.intersectPlane(floorPlane, new THREE.Vector3());
+        if (point && point.distanceTo(avatarPosition) <= 18 && walkable(point.x, point.z)) {
+          moving.clear();
+          waypoint = point;
+          if (!frame && !paused) frame = requestAnimationFrame(animate);
+        }
+      }
     }
     press = null;
   });
   canvas.addEventListener('pointerleave', () => { message.textContent = ''; });
   function keyMove(event, down) {
     const direction = movementKeys[event.key] || movementKeys[event.key.toLowerCase()];
+    const interact = event.key.toLowerCase() === 'e';
     const bounds = canvas.getBoundingClientRect();
-    if (!direction || paused || (down && (event.altKey || event.ctrlKey || event.metaKey ||
+    if ((!direction && !interact) || paused || (down && (event.altKey || event.ctrlKey || event.metaKey ||
       bounds.bottom < 150 || bounds.top >= innerHeight || event.target.closest?.('input,select,textarea,dialog,[contenteditable=true]') || document.querySelector('dialog[open]')))) return;
     event.preventDefault();
-    movement(direction, down);
+    if (interact) { if (down && !event.repeat) traverse(); }
+    else movement(direction, down);
   }
   window.addEventListener('keydown', event => keyMove(event, true));
   window.addEventListener('keyup', event => keyMove(event, false));
@@ -1199,7 +1323,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
   });
 
   return {
-    go, stage, locate, setBooks, setAvatar, movement, stopMoving, zoom, presencePose, setVisitors,
+    go, stage, locate, setBooks, setAvatar, movement, stopMoving, zoom, presencePose, setVisitors, traverse,
     wave() {
       localWave = performance.now();
       if (!paused && !frame) frame = requestAnimationFrame(animate);

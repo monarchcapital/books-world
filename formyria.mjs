@@ -27,7 +27,10 @@ let presenceTask = Promise.resolve();
 let pendingWave = false;
 let wavedAt = -Infinity;
 let memberListText = '';
-const tourNames = { hall: 'Library Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery', court: 'Sunstone Court', observatory: 'The Hidden Observatory' };
+const tourNames = { gate: 'Gate Bridge', castle: 'Castle Hall', hall: 'Library Hall', west: 'West Stacks',
+  east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery',
+  orrery: 'Orrery Tower', conservatory: 'Conservatory', court: 'Sunstone Court' };
+const outsideLibrary = place => ['gate', 'castle', 'orrery', 'conservatory', 'court'].includes(place);
 let currentMembers = [];
 let lookingUpMember = '';
 let readingShared = '';
@@ -42,6 +45,7 @@ let currentTourStop = 'hall';
 let castleRoom = 'gate';
 let visitRevision = 0;
 let wingActivity;
+let stationActivity;
 const newBookPageSize = 24;
 let newBookCount = newBookPageSize;
 
@@ -49,6 +53,7 @@ function isDialogOpen(dialog) { return Boolean(dialog?.hasAttribute('open')); }
 
 function openDialog(dialog) {
   if (isDialogOpen(dialog)) return;
+  tour?.stopMoving();
   if (!(compact.matches && dialog.classList.contains('library-sheet')) && typeof dialog.showModal === 'function') {
     try { dialog.showModal(); return; } catch { /* The page can still present its own sheet. */ }
   }
@@ -106,17 +111,24 @@ document.addEventListener('keydown', event => {
 
 function showStop(place) {
   currentTourStop = place;
+  status($('#world-travel-note'));
+  $('#library').dataset.location = outsideLibrary(place) ? 'castle' : 'library';
+  $('#tour-canvas').dataset.room = place;
   const activity = $('#tour-academy-action');
-  activity.hidden = place !== 'court';
-  activity.textContent = 'Twin Lanterns';
+  activity.hidden = place !== 'court' && !Object.hasOwn(castleWings, place);
+  activity.textContent = place === 'court' ? 'Twin Lanterns' : place === 'orrery' ? 'Use the orrery' : 'Use the potting bench';
   $('#tour-room').textContent = tourNames[place];
   $('#tour-instructions').textContent = {
-    hall: 'Walk with W A S D, the arrow keys, or the on-screen arrows. Select a bookcase to approach it.',
+    gate: 'Walk across the bridge toward the gate. Drag to look around.',
+    castle: 'Follow the signs over each doorway. Walk through to enter the room.',
+    hall: 'Walk to a shelf to choose a book. The south door leads back to Castle Hall.',
     west: 'History, fiction, literature, philosophy and biography. Select a book by its spine.',
     east: 'Science, technology, business and finance. Select a book by its spine.',
     archives: 'Reference books and works awaiting classification. Select a book by its spine.',
     desk: 'Pick a book from a stack or the catalogue to bring it to the desk.',
     portrait: 'The framed portrait hangs at the far end of the hall.',
+    orrery: 'Align the celestial rings. The east door returns to Castle Hall.',
+    conservatory: 'Use the potting bench or take the north door to Sunstone Court.',
     court: 'Meet another member to light the Twin Lanterns.',
   }[place];
   for (const control of document.querySelectorAll('[data-stop]')) {
@@ -128,22 +140,32 @@ function showStop(place) {
 function showTour(visible) {
   $('#library-tour').hidden = !visible;
   $('.hall-hero').hidden = visible;
+  if (!visible) $('#library').dataset.location = 'library';
   $('#library').setAttribute('aria-labelledby', visible ? 'tour-room' : 'hall-title');
   tour?.setVisible(visible);
   $('#tour-menu-dialog').querySelectorAll('[data-tour-only]').forEach(control => { control.hidden = !visible; });
   syncSharedTour();
 }
 
-async function loadTour() {
-  if (body.classList.contains('lightweight') || tourFailed || !state.account || state.account.rotate || $('#library').hidden) {
+async function loadTour(prepare = false) {
+  if (body.classList.contains('lightweight') || tourFailed || !state.account || state.account.rotate || (!prepare && $('#library').hidden)) {
     showTour(false);
     return;
   }
   if (!tourLoading) {
-    tourLoading = import('./library-tour.mjs?v=13').then(module => {
+    tourLoading = import('./library-tour.mjs?v=14').then(module => {
       tour = module.createLibraryTour({
         canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, compact,
         onPick: book => openBook(book, true),
+        onActivity: openWorldStation,
+        onThreshold(destination) {
+          const control = $('#world-threshold');
+          control.hidden = !destination;
+          control.textContent = destination === 'castle' ? 'Exit to Castle Hall'
+            : destination === 'gate' ? 'Exit to Gate Bridge'
+            : destination === 'conservatory' && currentTourStop === 'court' ? 'Exit to Conservatory'
+            : 'Enter ' + (destination === 'hall' ? 'Ria’s Library' : tourNames[destination] || '');
+        },
         onJourney(book) {
           const notice = $('#book-journey');
           notice.hidden = !book;
@@ -188,6 +210,8 @@ async function loadTour() {
   if (state.account && !$('#library').hidden && !body.classList.contains('lightweight') && !tourFailed) showTour(true);
 }
 
+$('#world-threshold').addEventListener('click', () => tour?.traverse());
+
 document.querySelectorAll('[data-stop]').forEach(control => {
   control.addEventListener('click', () => {
     closeDialog(control.closest('dialog'));
@@ -231,7 +255,10 @@ async function openAcademy(control, tab) {
     status($('#academy-feedback'), error.message, true);
   }
 }
-$('#tour-academy-action').addEventListener('click', event => openAcademy(event.currentTarget, 'coop'));
+$('#tour-academy-action').addEventListener('click', event => {
+  if (currentTourStop === 'court') openAcademy(event.currentTarget, 'coop');
+  else if (Object.hasOwn(castleWings, currentTourStop)) openWorldStation(currentTourStop);
+});
 
 function shareLabels(members = [], message) {
   currentMembers = members;
@@ -447,7 +474,7 @@ document.querySelectorAll('[data-wave]').forEach(control => control.addEventList
 }));
 $('#meet-grand-hall').addEventListener('click', () => {
   closeDialog($('#shared-tour-dialog'));
-  tour?.go('hall');
+  tour?.go('castle');
   if (presenceActive) schedulePresence(0);
 });
 document.addEventListener('visibilitychange', () => {
@@ -460,7 +487,11 @@ window.addEventListener('pagehide', event => {
     body: JSON.stringify({ leave: true })
   }).catch(() => {});
 });
-$('#tour-canvas').addEventListener('tourunavailable', () => { tourFailed = true; showTour(false); });
+$('#tour-canvas').addEventListener('tourunavailable', () => {
+  tourFailed = true;
+  if (outsideLibrary(currentTourStop)) visitHall(false, true);
+  else showTour(false);
+});
 $('#tour-prev').addEventListener('click', () => tour?.page(-1));
 $('#tour-next').addEventListener('click', () => tour?.page(1));
 $('#compact-shelf-prev').addEventListener('click', () => tour?.page(-1));
@@ -651,6 +682,7 @@ function closeLibrary(message = '') {
   closeDialog($('#tour-menu-dialog'));
   closeDialog($('#book-requests-dialog'));
   closeDialog($('#academy-dialog'));
+  closeDialog($('#world-activity-dialog'));
   academy?.reset();
   setSession(null, null);
   state.books = [];
@@ -703,9 +735,15 @@ function showCastleRoom(room) {
   window.scrollTo(0, 0);
 }
 
-function visitHall(animate = false) {
+function visitHall(animate = false, photo = false) {
   visitRevision++;
   closeDialog($('#academy-dialog'));
+  closeDialog($('#world-activity-dialog'));
+  if (!photo && tour && !$('#library-tour').hidden) {
+    tour.go('castle');
+    $('#library-tour').scrollIntoView({ block: 'start' });
+    return;
+  }
   showCastleRoom('castle');
   castleHub.classList.toggle('arriving', animate);
   $('#castle-hub-title').focus({ preventScroll: true });
@@ -720,11 +758,60 @@ async function visitLibrary(destination = 'hall') {
   await Promise.all([loadCatalogue(), loadTour(), state.account.role === 'admin' && loadNotifications()]);
   if (revision !== visitRevision || !state.account) return false;
   if (tour && !$('#library-tour').hidden) {
-    if (previous !== 'library' || destination !== 'hall') tour.go(destination);
+    if (previous !== 'library' || destination !== 'hall' || outsideLibrary(currentTourStop)) tour.go(destination);
     $('#tour-room').focus({ preventScroll: true });
   } else $('#hall-title').focus({ preventScroll: true });
   return true;
 }
+
+async function openWorld(destination) {
+  if (body.classList.contains('lightweight') || tourFailed) return false;
+  const revision = ++visitRevision;
+  const account = state.account?.username;
+  await loadTour(true);
+  if (!tour || tourFailed || !account || state.account?.username !== account || revision !== visitRevision) return false;
+  showCastleRoom('library');
+  tour.go(destination);
+  showTour(true);
+  $('#tour-room').focus({ preventScroll: true });
+  if (presenceActive) schedulePresence(0);
+  if (!state.books.length) loadCatalogue();
+  if (state.account.role === 'admin') loadNotifications();
+  return true;
+}
+
+async function openWorldStation(room) {
+  if (!Object.hasOwn(castleWings, room) || room !== currentTourStop || !state.account) return;
+  const dialog = $('#world-activity-dialog');
+  const revision = visitRevision;
+  const username = state.account.username;
+  $('#world-activity-title').textContent = castleWings[room];
+  openDialog(dialog);
+  try {
+    const { buildCastleActivity } = await import('./castle-games.mjs?v=13');
+    if (revision !== visitRevision || state.account?.username !== username || !isDialogOpen(dialog)) return;
+    stationActivity?.destroy?.();
+    stationActivity = buildCastleActivity($('#world-activity-content'), room, {
+      remember: (key, value) => storage('localStorage', 'formyria.castle.' + username + '.' + key, value),
+      finish: done => { dialog.dataset.finished = String(done); },
+      openQuiz: () => { closeDialog(dialog); openAcademy(null, 'quiz'); },
+      openCourtyard: () => {
+        closeDialog(dialog);
+        status($('#world-travel-note'), 'Take the north door to Sunstone Court.');
+        return true;
+      },
+      animated: true,
+    });
+  } catch (error) {
+    if (isDialogOpen(dialog)) $('#world-activity-content').append(node('p', error.message, 'form-status'));
+  }
+}
+
+$('#world-activity-dialog').addEventListener('close', () => {
+  stationActivity?.destroy?.();
+  stationActivity = null;
+  $('#world-activity-content').replaceChildren();
+});
 
 async function visitWing(room) {
   const revision = ++visitRevision;
@@ -789,7 +876,7 @@ document.querySelectorAll('[data-castle-hall]').forEach(control => control.addEv
 document.querySelectorAll('[data-library-jump]').forEach(control => control.addEventListener('click', async event => {
   event.preventDefault();
   closeDialog(control.closest('dialog'));
-  if (!state.account || (castleRoom !== 'library' && !await visitLibrary())) return;
+  if (!state.account || ((castleRoom !== 'library' || outsideLibrary(currentTourStop)) && !await visitLibrary())) return;
   $(control.hash)?.scrollIntoView({ behavior: animateCastle() ? 'smooth' : 'instant' });
 }));
 
@@ -801,18 +888,20 @@ async function enter(animate) {
   }
   const activeToken = state.token;
   const effect = animate && animateCastle();
+  const preparing = loadTour(true);
   $('.hall-camera img').loading = 'eager';
   if (effect) {
     $('#entrance').classList.add('entering');
     window.scrollTo(0, 0);
     await new Promise(resolve => setTimeout(resolve, 1990));
   }
+  await preparing;
   if (state.token !== activeToken) return;
-  visitHall(effect);
-  $('#entrance').classList.remove('entering');
   $('#office-button').hidden = state.account.role !== 'admin';
   $('#tour-office').hidden = state.account.role !== 'admin';
   $('#compact-office').hidden = state.account.role !== 'admin';
+  if (!await openWorld('gate') && state.token === activeToken) visitHall(effect, true);
+  $('#entrance').classList.remove('entering');
 }
 
 async function submit(form, task) {
@@ -902,7 +991,13 @@ $('#lightweight').addEventListener('click', () => {
   const enabled = !body.classList.contains('lightweight');
   storage('localStorage', 'formyria-lightweight', String(enabled));
   setLightweight(enabled);
-  loadTour();
+  if (!state.account || state.account.rotate) return;
+  if (enabled && !$('#library-tour').hidden && outsideLibrary(currentTourStop)) {
+    if (Object.hasOwn(castleWings, currentTourStop)) visitWing(currentTourStop);
+    else visitHall(false, true);
+  } else if (!enabled && castleRoom !== 'library') {
+    if (castleRoom !== 'gate') openWorld(castleRoom);
+  } else loadTour();
 });
 
 async function loadCatalogue() {
@@ -1062,7 +1157,7 @@ async function loadMembers() {
 }
 
 async function openOffice() {
-  if (state.account?.role !== 'admin' || (castleRoom !== 'library' && !await visitLibrary())) return;
+  if (state.account?.role !== 'admin' || ((castleRoom !== 'library' || outsideLibrary(currentTourStop)) && !await visitLibrary())) return;
   $('#office').hidden = false;
   $('#office-title').focus({ preventScroll: true });
   $('#office').scrollIntoView({ behavior: motion.matches ? 'instant' : 'smooth' });
@@ -1109,7 +1204,7 @@ async function openStudy() {
   } catch (error) { status($('#study-status'), error.message, true); }
 }
 document.querySelectorAll('[data-study]').forEach(button => button.addEventListener('click', async () => {
-  if (!state.account || (castleRoom !== 'library' && !await visitLibrary())) return;
+  if (!state.account || ((castleRoom !== 'library' || outsideLibrary(currentTourStop)) && !await visitLibrary())) return;
   openStudy();
   $('#study-title').focus({ preventScroll: true });
   $('#study').scrollIntoView({ behavior: motion.matches ? 'instant' : 'smooth' });

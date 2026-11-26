@@ -9,9 +9,9 @@
   <meta name="robots" content="noindex, nofollow">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://rias-library.nutmegarbor1.chatgpt.site; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>Ria’s Library · Formyria</title>
-  <link rel="stylesheet" href="./formyria.css?v=13">
-  <link rel="stylesheet" href="./castle.css?v=13">
-  <script src="./formyria.mjs?v=13" type="module"></script>
+  <link rel="stylesheet" href="./formyria.css?v=14">
+  <link rel="stylesheet" href="./castle.css?v=14">
+  <script src="./formyria.mjs?v=14" type="module"></script>
 </head>
 <body data-library-api="https://rias-library.nutmegarbor1.chatgpt.site">
   <header class="topbar">
@@ -105,15 +105,17 @@
     </section>
 
     <section id="library" hidden aria-labelledby="hall-title">
-      <section id="library-tour" class="tour" aria-label="Three-dimensional library tour" hidden>
-        <canvas id="tour-canvas" aria-label="Interactive library. Walk with W A S D, arrow keys, or the on-screen direction controls." tabindex="0"></canvas>
+      <section id="library-tour" class="tour walk-open" aria-label="Walkable castle" hidden>
+        <canvas id="tour-canvas" aria-label="Walk with W A S D, arrow keys or the on-screen directions. Drag to look and press E at a doorway." tabindex="0"></canvas>
         <div class="tour-overlay">
           <div class="tour-heading">
-            <p class="kicker"><span></span> Ria’s Library</p>
+            <p class="kicker"><span></span> Formyria Castle</p>
             <h1 id="tour-room" tabindex="-1">Library Hall</h1>
-            <p id="tour-instructions">Use W A S D or the arrow controls to walk. Select a bookcase to approach it.</p>
+            <p id="tour-instructions">Walk with W A S D or the arrow controls. Drag to look around.</p>
+            <p id="world-travel-note" class="form-status" role="status"></p>
             <button class="outline tour-academy-action" id="tour-academy-action" type="button" hidden>Academy activity</button>
           </div>
+          <button class="outline world-threshold" id="world-threshold" type="button" hidden></button>
           <div class="wand-target" id="wand-target" aria-hidden="true"><span></span></div>
           <button class="wand-book outline" id="wand-book" type="button" hidden></button>
           <p id="book-journey" class="book-journey" role="status" hidden></p>
@@ -131,7 +133,7 @@
             <button type="button" class="outline" id="zoom-out" aria-label="Zoom out">−</button>
             <button type="button" class="outline" id="zoom-in" aria-label="Zoom in">+</button>
           </div>
-          <div class="walk-controls" role="group" aria-label="Walk around the library">
+          <div class="walk-controls" role="group" aria-label="Walk around the castle">
             <button type="button" class="outline" data-walk="forward" aria-label="Walk forward">↑</button>
             <button type="button" class="outline" data-walk="left" aria-label="Walk left">←</button>
             <button type="button" class="outline" data-walk="back" aria-label="Walk backward">↓</button>
@@ -144,7 +146,11 @@
             <button class="outline" type="button" data-stop="east">East Gallery</button>
             <button class="outline" type="button" data-stop="portrait" hidden>Portrait Gallery</button>
             <button class="outline" type="button" data-stop="hall" aria-current="location">Library Hall</button>
-            <button class="outline" type="button" data-castle-hall>Castle Hall</button>
+            <button class="outline" type="button" data-stop="gate">Gate Bridge</button>
+            <button class="outline" type="button" data-stop="orrery">Orrery Tower</button>
+            <button class="outline" type="button" data-stop="conservatory">Conservatory</button>
+            <button class="outline" type="button" data-stop="court">Sunstone Court</button>
+            <button class="outline" type="button" data-stop="castle">Castle Hall</button>
           </nav>
           <div class="tour-actions">
             <a class="brass" href="#shelves">Catalogue <span aria-hidden="true">↓</span></a>
@@ -162,7 +168,7 @@
             </div>
           </div>
           <nav class="tour-compact-nav" aria-label="Quick tour controls">
-            <button type="button" class="outline" id="walk-menu-button" aria-pressed="false">Walk</button>
+            <button type="button" class="outline" id="walk-menu-button" aria-pressed="true">Walk</button>
             <button type="button" class="outline" id="compact-shelf-books" hidden>Shelf</button>
             <button type="button" class="outline" id="map-menu-button">Map</button>
             <button type="button" class="outline" data-shared-tour aria-haspopup="dialog">People</button>
@@ -364,7 +370,11 @@
       <button class="outline" type="button" data-stop="archives">Archives</button>
       <button class="outline" type="button" data-stop="desk">Reading Desk</button>
       <button class="outline" type="button" data-stop="portrait" hidden>Portrait Gallery</button>
-      <button class="outline" type="button" data-castle-hall>Castle Hall</button>
+      <button class="outline" type="button" data-stop="gate">Gate Bridge</button>
+      <button class="outline" type="button" data-stop="orrery">Orrery Tower</button>
+      <button class="outline" type="button" data-stop="conservatory">Conservatory</button>
+      <button class="outline" type="button" data-stop="court">Sunstone Court</button>
+      <button class="outline" type="button" data-stop="castle">Castle Hall</button>
     </div>
   </dialog>
   <dialog class="library-sheet" id="tour-menu-dialog" aria-labelledby="tour-menu-title">
@@ -398,6 +408,13 @@
     <div id="academy-activity"></div>
     <p id="academy-feedback" class="form-status" role="status"></p>
   </dialog>
+  <dialog class="request-dialog world-station" id="world-activity-dialog" aria-labelledby="world-activity-title">
+    <div class="book-dialog-header">
+      <h2 class="section-title" id="world-activity-title"></h2>
+      <form method="dialog"><button class="outline" aria-label="Return to the room">Back to room</button></form>
+    </div>
+    <div id="world-activity-content"></div>
+  </dialog>
   <dialog class="library-sheet request-dialog" id="book-requests-dialog" aria-labelledby="book-requests-title">
     <div class="book-dialog-header">
       <h2 class="section-title" id="book-requests-title">Book requests</h2>
@@ -427,7 +444,7 @@
     <div class="office-actions">
       <button class="brass" type="button" id="join-shared-tour" aria-pressed="false">Turn on shared tour</button>
       <button class="outline" type="button" data-wave hidden>Wave</button>
-      <button class="outline" type="button" id="meet-grand-hall" hidden>Meet in Grand Hall</button>
+      <button class="outline" type="button" id="meet-grand-hall" hidden>Meet in Castle Hall</button>
     </div>
     <p id="shared-tour-status" class="form-status" role="status"></p>
     <ul id="shared-tour-members" aria-label="Members in the shared tour" hidden></ul>

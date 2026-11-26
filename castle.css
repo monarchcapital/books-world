@@ -311,3 +311,26 @@
   .gate-view *, .castle-hub *, .castle-wing * { animation: none !important; transition: none !important; }
 }
 .lightweight .gate-view *, .lightweight .castle-hub *, .lightweight .castle-wing * { animation: none !important; }
+
+#library[data-location="castle"] :is(.hall-hero, .shelves, .office),
+#library[data-location="castle"] .tour-actions > :is(a[href="#shelves"], [data-study], #tour-office) { display: none; }
+.world-threshold {
+  position: absolute;
+  z-index: 2;
+  bottom: 116px;
+  left: 50%;
+  translate: -50% 0;
+  min-width: 158px;
+  padding-inline: 16px;
+  text-align: center;
+  background: #201a19ec;
+  border-color: #be9c61;
+  box-shadow: 0 8px 24px #171111bb;
+  font: 16px var(--serif);
+}
+.world-station .wing-panel { box-shadow: none; border: 0; padding-inline: 0; }
+@media (max-width: 850px), (pointer: coarse) {
+  .world-threshold { bottom: 68px; left: auto; right: 12px; translate: none; min-width: 0; max-width: min(calc(100% - 148px), 240px); }
+  .world-station { width: min(560px, calc(100% - 18px)); max-height: 90svh; }
+  .tour-heading #world-travel-note:not(:empty) { display: block; }
+}
