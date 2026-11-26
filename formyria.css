@@ -166,7 +166,8 @@ dialog::backdrop { background: #100d14db }
 #book-dialog .kicker { color: #654934 }
 #book-dialog #selected-author, #book-dialog #selected-description, #book-dialog .form-status { color: #513724 }
 #book-dialog .form-status[data-error=true] { color: #861f20 }
-#book-dialog .reader-nav { border-block: 1px solid #86654763; padding-block: 8px }
+#book-dialog .reader-nav { border-block: 1px solid #86654763; padding-block: 8px; margin-top: 14px }
+#book-dialog .reader-nav button { min-height: 44px }
 #book-dialog #reader canvas { box-shadow: 0 4px 12px #49301d52 }
 .reader-study { border: 1px solid #86654766; padding: 10px 12px; margin-top: 15px }
 .reader-study summary { cursor: pointer; font-weight: 650 }
@@ -188,7 +189,7 @@ dialog .hall-actions { margin-top: 16px }
 #reader canvas { display: block; max-width: 100%; height: auto; margin: 14px auto }
 .epub-chapter { color-scheme: light; color: #292018; background: #f5eacb; font: 18px/1.7 var(--serif); padding: clamp(16px, 4vw, 40px); margin-top: 14px; overflow-wrap: anywhere; box-shadow: inset 0 0 24px #ab855238, 0 3px 10px #49301d42 }
 .epub-chapter p { margin-block: 0 1em }
-.reader-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px }
+.reader-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px }
 .layout:target { scroll-margin-top: 12px }
 .lightweight .threshold, .lightweight .threshold-half, .lightweight .hall-hero::before { background-image: none }
 .lightweight .entrance, .lightweight .hall-hero { min-height: auto }

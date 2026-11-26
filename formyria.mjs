@@ -846,33 +846,39 @@ $('#book-summarise').addEventListener('click', async event => {
   finally { model?.destroy(); button.disabled = false; }
 });
 
-async function pagination(total, render) {
+async function pagination(total, render, signal) {
   await readingReady;
-  if (!dialog.open) return;
+  if (!dialog.open || signal.aborted) return;
   const previous = node('button', 'Previous', 'outline');
   const next = node('button', 'Next', 'outline');
   const label = node('span');
   label.setAttribute('role', 'status');
   const controls = node('div', '', 'reader-nav');
+  const content = node('div', '', 'reader-page');
+  content.tabIndex = -1;
   controls.append(previous, label, next);
-  $('#reader').replaceChildren(controls);
+  $('#reader').replaceChildren(content, controls);
   let page = Math.max(1, Math.min(total, bookReading.page || 1));
   let busy = false;
-  async function show(number) {
-    if (busy || number < 1 || number > total) return;
+  async function show(number, turning = true) {
+    if (busy || signal.aborted || number < 1 || number > total) return;
     busy = true;
     page = number;
     selection = '';
     previous.disabled = next.disabled = true;
     label.textContent = `${page} of ${total}`;
     try {
-      await render(page);
-      if (!dialog.open) return;
+      await render(page, content);
+      if (!dialog.open || signal.aborted) return;
       activePage = page;
       $('#reader-annotations').hidden = false;
       renderBookStudy();
       paintHighlights();
       saveBookStudy({ progress: { page, total } }, true);
+      if (turning) {
+        content.focus({ preventScroll: true });
+        dialog.scrollTop += content.getBoundingClientRect().top - dialog.getBoundingClientRect().top - dialog.clientTop;
+      }
     }
     catch (error) { if (dialog.open) status($('#reader-status'), error.message, true); }
     finally { busy = false; }
@@ -882,7 +888,7 @@ async function pagination(total, render) {
   previous.addEventListener('click', () => show(page - 1));
   next.addEventListener('click', () => show(page + 1));
   showReaderPage = show;
-  return show(page);
+  return show(page, false);
 }
 
 async function readPdf(book, signal) {
@@ -917,7 +923,7 @@ async function readPdf(book, signal) {
     }
   }
   selectable.addEventListener('toggle', pageText);
-  await pagination(documentPdf.numPages, async number => {
+  await pagination(documentPdf.numPages, async (number, content) => {
     const page = await documentPdf.getPage(number);
     if (signal.aborted) return;
     const width = page.getViewport({ scale: 1 }).width;
@@ -925,10 +931,10 @@ async function readPdf(book, signal) {
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     highlightedPage = page;
-    $('#reader').append(canvas, selectable);
+    content.append(canvas, selectable);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
     await pageText();
-  });
+  }, signal);
 }
 
 function relative(base, path) {
@@ -968,7 +974,7 @@ async function readEpub(book, signal) {
   setTextSource(chapters.length, async number => xml(relative(packagePath, chapters[number - 1])).getElementsByTagNameNS('*', 'body')[0]?.textContent || '', signal);
   const page = node('article', '', 'epub-chapter');
   page.setAttribute('aria-label', 'EPUB chapter');
-  await pagination(chapters.length, number => {
+  await pagination(chapters.length, (number, readerPage) => {
     const code = xml(relative(packagePath, chapters[number - 1]));
     const content = code.getElementsByTagNameNS('*', 'body')[0];
     if (!content) throw new Error('This chapter could not be opened.');
@@ -989,8 +995,8 @@ async function readEpub(book, signal) {
       return fragment;
     }
     page.replaceChildren(clean(content));
-    $('#reader').append(page);
-  });
+    readerPage.append(page);
+  }, signal);
 }
 
 $('#read-book').addEventListener('click', async event => {
