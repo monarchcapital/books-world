@@ -23,6 +23,7 @@ h1, h2, h3, p { margin: 0 }
 .wordmark small { display: block; margin-top: 5px; color: var(--ink); font: 10px/1 var(--sans); text-transform: uppercase; letter-spacing: .19em }
 .navigation, .hall-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center }
 .navigation { min-width: 0; justify-content: end }
+#library-menu-button { display: none }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0 }
 .avatar-menu select { min-height: 40px; padding-inline: 7px; font-size: 12px }
 .quiet, .outline { min-height: 40px; background: #231b16; color: var(--ink); border: 1px solid var(--line); padding: 8px 14px }
@@ -151,7 +152,11 @@ input::placeholder { color: #b3a089 }
 #edit-dialog label { margin-top: 12px }
 #edit-dialog textarea { min-height: 72px; min-width: 0; background: #130f0d; color: var(--ink); border: 1px solid var(--line); padding: 8px; font: inherit }
 dialog { width: min(900px, calc(100% - 30px)); max-height: 90svh; border: 1px solid var(--brass); background: #201a16; color: var(--ink); padding: 25px }
+dialog:not([open]) { display: none }
 dialog::backdrop { background: #100d14db }
+body.has-sheet { overflow: hidden }
+#sheet-backdrop { position: fixed; inset: 0; background: #100d14db; touch-action: none; z-index: 49 }
+dialog.sheet-open { display: block; position: fixed; inset: 0; margin: auto; max-height: 86vh; overflow: auto; overscroll-behavior: contain; z-index: 50 }
 #book-dialog {
   color-scheme: light;
   color: #302318;
@@ -243,11 +248,23 @@ dialog .hall-actions { margin-top: 16px }
   .tour-book-label { margin-bottom: 100px }
 }
 @media (max-width: 850px), (pointer: coarse) {
-  .topbar { padding-inline: 14px; gap: 7px }
+  .topbar { padding-inline: max(14px, env(safe-area-inset-left)); gap: 7px; position: sticky; top: 0 }
   .navigation { gap: 4px }
+  #library-menu-button { display: inline-flex; align-items: center; min-height: 44px }
   .navigation .avatar-menu { display: none }
   .topbar .quiet { padding: 5px 8px; min-height: 35px; white-space: nowrap; font-size: 11px }
   .tour { height: min(76svh, 780px); height: clamp(410px, calc(100svh - 70px), 820px); min-height: 0 }
+  dialog.library-sheet.sheet-open {
+    inset: auto 0 0;
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    max-height: 78vh;
+    max-height: 78dvh;
+    border-radius: 16px 16px 0 0;
+    padding: 18px 16px max(22px, env(safe-area-inset-bottom));
+  }
+  .library-sheet .outline, .library-sheet .brass { min-height: 44px }
   .tour-overlay { display: block; padding: 0; background: linear-gradient(180deg,#160e0999,transparent 31%,transparent 62%,#160e09cf); }
   .tour-heading { position: absolute; left: 14px; right: 103px; top: 14px }
   .tour-heading h1 { font-size: clamp(30px,8vw,57px); margin: 0; line-height: .96; letter-spacing: -.05em }

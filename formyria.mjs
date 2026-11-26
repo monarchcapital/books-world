@@ -24,10 +24,72 @@ let presenceTask = Promise.resolve();
 let pendingWave = false;
 let wavedAt = -Infinity;
 let memberListText = '';
+const tourNames = { hall: 'The Grand Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery' };
+const sharedPreference = username => 'formyria-shared:' + username;
+let activeSheet;
+let sheetTrigger;
+
+function isDialogOpen(dialog) { return Boolean(dialog?.hasAttribute('open')); }
+
+function openDialog(dialog) {
+  if (isDialogOpen(dialog)) return;
+  if (!(compact.matches && dialog.classList.contains('library-sheet')) && typeof dialog.showModal === 'function') {
+    try { dialog.showModal(); return; } catch { /* The page can still present its own sheet. */ }
+  }
+  if (activeSheet) closeDialog(activeSheet);
+  activeSheet = dialog;
+  sheetTrigger = document.activeElement;
+  dialog.setAttribute('role', 'dialog');
+  dialog.setAttribute('aria-modal', 'true');
+  dialog.classList.add('sheet-open');
+  dialog.setAttribute('open', '');
+  document.body.classList.add('has-sheet');
+  $('#sheet-backdrop').hidden = false;
+  $('.topbar').inert = $('main').inert = true;
+  dialog.querySelector('button, a, input')?.focus({ preventScroll: true });
+}
+
+function closeDialog(dialog) {
+  if (!isDialogOpen(dialog)) return;
+  if (dialog !== activeSheet) { dialog.close(); return; }
+  const trigger = sheetTrigger;
+  activeSheet = sheetTrigger = null;
+  dialog.classList.remove('sheet-open');
+  dialog.removeAttribute('open');
+  dialog.removeAttribute('aria-modal');
+  document.body.classList.remove('has-sheet');
+  $('#sheet-backdrop').hidden = true;
+  $('.topbar').inert = $('main').inert = false;
+  if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+  dialog.dispatchEvent(new Event('close'));
+}
+
+$('#sheet-backdrop').addEventListener('click', () => closeDialog(activeSheet));
+document.addEventListener('submit', event => {
+  if (activeSheet && event.target.closest('dialog') === activeSheet && event.target.getAttribute('method') === 'dialog') {
+    event.preventDefault();
+    closeDialog(activeSheet);
+  }
+});
+document.addEventListener('keydown', event => {
+  if (!activeSheet) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeDialog(activeSheet);
+  }
+  if (event.key === 'Tab') {
+    const elements = Array.from(activeSheet.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')).filter(control => control.getClientRects().length);
+    const last = elements[elements.length - 1];
+    const boundary = event.shiftKey ? elements[0] : last;
+    if (boundary === document.activeElement) {
+      event.preventDefault();
+      (event.shiftKey ? last : elements[0])?.focus();
+    }
+  }
+});
 
 function showStop(place) {
-  const names = { hall: 'The Grand Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery' };
-  $('#tour-room').textContent = names[place];
+  $('#tour-room').textContent = tourNames[place];
   $('#tour-instructions').textContent = {
     hall: 'Walk with W A S D, the arrow keys, or the on-screen arrows. Select a bookcase to approach it.',
     west: 'History, fiction, literature, philosophy and biography. Select a book by its spine.',
@@ -47,6 +109,7 @@ function showTour(visible) {
   $('.hall-hero').hidden = visible;
   $('#library').setAttribute('aria-labelledby', visible ? 'tour-room' : 'hall-title');
   tour?.setVisible(visible);
+  $('#tour-menu-dialog').querySelectorAll('[data-tour-only]').forEach(control => { control.hidden = !visible; });
   syncSharedTour();
 }
 
@@ -90,7 +153,7 @@ async function loadTour() {
           $('#compact-shelf-position').textContent = (index + 1) + ' of ' + total;
           $('#compact-shelf-prev').disabled = index === 0;
           $('#compact-shelf-next').disabled = index + 1 >= total;
-          if ($('#shelf-dialog').open) setShelfChoices();
+          if (isDialogOpen($('#shelf-dialog'))) setShelfChoices();
         }
       });
       tour.setAvatar(state.account?.avatar || (state.account?.role === 'admin' ? 'librarian' : 'member'));
@@ -106,7 +169,7 @@ async function loadTour() {
 
 document.querySelectorAll('[data-stop]').forEach(control => {
   control.addEventListener('click', () => {
-    control.closest('dialog')?.close();
+    closeDialog(control.closest('dialog'));
     tour?.go(control.dataset.stop);
   });
 });
@@ -117,11 +180,12 @@ function shareLabels(members = [], message) {
   join.textContent = shared ? 'Leave shared tour' : 'Join shared tour';
   document.querySelectorAll('[data-shared-tour]').forEach(control => control.classList.toggle('is-sharing', shared));
   document.querySelectorAll('[data-wave]').forEach(control => { control.hidden = !presenceActive; });
+  $('#meet-grand-hall').hidden = !presenceActive || members.length === 0;
   const announcement = message ?? (shared
-    ? (members.length ? members.length + (members.length === 1 ? ' member nearby' : ' members nearby') : 'You’re sharing your avatar. Nobody is nearby yet.')
+    ? (members.length ? members.length + (members.length === 1 ? ' other member in the tour' : ' other members in the tour') : 'You’re sharing your avatar. Ask the other member to open People and join too.')
     : '');
   if ($('#shared-tour-status').textContent !== announcement) status($('#shared-tour-status'), announcement);
-  const labels = members.map(member => member.username + (member.wave ? ' · waving' : ''));
+  const labels = members.map(member => [member.username, tourNames[member.area] || tourNames.hall, member.wave ? 'waving' : ''].filter(Boolean).join(' · '));
   const signature = labels.join('|');
   if (memberListText === signature) return;
   memberListText = signature;
@@ -131,10 +195,16 @@ function shareLabels(members = [], message) {
 }
 
 function presenceRequest(data, token) {
-  const task = presenceTask.then(() => request('/api/tour/presence', {
-    method: 'POST', data, credential: false, headers: { Authorization: 'Bearer ' + token },
-    signal: AbortSignal.timeout(6_000)
-  }));
+  const task = presenceTask.then(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6_000);
+    try {
+      return await request('/api/tour/presence', {
+        method: 'POST', data, credential: false, headers: { Authorization: 'Bearer ' + token },
+        signal: controller.signal
+      });
+    } finally { clearTimeout(timeout); }
+  });
   presenceTask = task.catch(() => {});
   return task;
 }
@@ -161,17 +231,18 @@ async function sendPresence(revision) {
     tour.setVisitors([]);
     if (error.status === 401 || error.status === 403) {
       shared = false;
+      if (state.account) storage('sessionStorage', sharedPreference(state.account.username), null);
       syncSharedTour();
       shareLabels([], 'Sign in as an approved member to join.');
       return;
     }
     shareLabels([], 'Reconnecting to the shared tour…');
   }
-  if (presenceActive && revision === presenceRevision) schedulePresence(pendingWave ? 0 : pose.walking ? 560 : 1_500);
+  if (presenceActive && revision === presenceRevision) schedulePresence(pendingWave ? 0 : document.hidden ? 7_000 : pose.walking ? 560 : 1_500);
 }
 
 function syncSharedTour() {
-  const active = Boolean(shared && state.token && tour && !$('#library-tour').hidden && !$('#book-dialog').open && !document.hidden);
+  const active = Boolean(shared && state.token && tour && !$('#library-tour').hidden && !isDialogOpen($('#book-dialog')));
   if (active === presenceActive) return;
   presenceActive = active;
   presenceRevision++;
@@ -189,11 +260,12 @@ function syncSharedTour() {
 }
 
 document.querySelectorAll('[data-shared-tour]').forEach(control => control.addEventListener('click', () => {
-  control.closest('dialog')?.close();
-  $('#shared-tour-dialog').showModal();
+  closeDialog(control.closest('dialog'));
+  openDialog($('#shared-tour-dialog'));
 }));
 $('#join-shared-tour').addEventListener('click', () => {
   shared = !shared;
+  if (state.account) storage('sessionStorage', sharedPreference(state.account.username), shared ? 'true' : null);
   syncSharedTour();
   if (!presenceActive) shareLabels([], shared ? 'Sharing paused.' : '');
 });
@@ -204,7 +276,21 @@ document.querySelectorAll('[data-wave]').forEach(control => control.addEventList
   pendingWave = true;
   schedulePresence(0);
 }));
-document.addEventListener('visibilitychange', syncSharedTour);
+$('#meet-grand-hall').addEventListener('click', () => {
+  closeDialog($('#shared-tour-dialog'));
+  tour?.go('hall');
+  if (presenceActive) schedulePresence(0);
+});
+document.addEventListener('visibilitychange', () => {
+  if (presenceActive) schedulePresence(document.hidden ? 7_000 : 0);
+});
+window.addEventListener('pagehide', event => {
+  if (!presenceActive || !state.token || event.persisted) return;
+  fetch(api + '/api/tour/presence', {
+    method: 'POST', keepalive: true, headers: { Authorization: 'Bearer ' + state.token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ leave: true })
+  }).catch(() => {});
+});
 $('#tour-canvas').addEventListener('tourunavailable', () => { tourFailed = true; showTour(false); });
 $('#tour-prev').addEventListener('click', () => tour?.page(-1));
 $('#tour-next').addEventListener('click', () => tour?.page(1));
@@ -213,15 +299,15 @@ $('#compact-shelf-next').addEventListener('click', () => tour?.page(1));
 $('#zoom-in').addEventListener('click', () => tour?.zoom(-8));
 $('#zoom-out').addEventListener('click', () => tour?.zoom(8));
 $('#wand-book').addEventListener('click', () => { if (aimedBook) goToReadingDesk(aimedBook); });
-$('#map-menu-button').addEventListener('click', () => $('#tour-map-dialog').showModal());
-$('#tour-menu-button').addEventListener('click', () => $('#tour-menu-dialog').showModal());
+$('#map-menu-button').addEventListener('click', () => openDialog($('#tour-map-dialog')));
+$('#library-menu-button').addEventListener('click', () => openDialog($('#tour-menu-dialog')));
 $('#walk-menu-button').addEventListener('click', event => {
   const visible = $('#library-tour').classList.toggle('walk-open');
   event.currentTarget.setAttribute('aria-pressed', String(visible));
   if (!visible) tour?.stopMoving();
 });
 for (const item of document.querySelectorAll('[data-drawer-close]')) {
-  item.addEventListener('click', () => item.closest('dialog')?.close());
+  item.addEventListener('click', () => closeDialog(item.closest('dialog')));
 }
 function setShelfChoices() {
   const dialog = $('#shelf-dialog');
@@ -229,14 +315,14 @@ function setShelfChoices() {
     const button = node('button', book.title, 'outline');
     button.type = 'button';
     button.append(node('small', [book.author, book.format.toUpperCase()].filter(Boolean).join(' · ')));
-    button.addEventListener('click', () => { dialog.close(); goToReadingDesk(book); });
+    button.addEventListener('click', () => { closeDialog(dialog); goToReadingDesk(book); });
     return button;
   });
   $('#shelf-dialog-list').replaceChildren(...choices);
 }
 function pickFromShelf() {
   setShelfChoices();
-  if (currentShelfBooks.length) $('#shelf-dialog').showModal();
+  if (currentShelfBooks.length) openDialog($('#shelf-dialog'));
 }
 $('#shelf-books').addEventListener('click', pickFromShelf);
 $('#compact-shelf-books').addEventListener('click', pickFromShelf);
@@ -335,10 +421,16 @@ function status(element, message = '', error = false) {
 }
 
 function setSession(token, account) {
+  if (!token && state.account) storage('sessionStorage', sharedPreference(state.account.username), null);
+  if (account?.username !== state.account?.username) {
+    shared = Boolean(account && storage('sessionStorage', sharedPreference(account.username)) === 'true');
+    shareLabels();
+  }
   state.token = token;
   state.account = account;
   storage('sessionStorage', 'formyria-session', token);
   $('#sign-out').hidden = !token;
+  $('#library-menu-button').hidden = !token || !account || account.rotate;
   $('#avatar-menu').hidden = account?.role !== 'member';
   $('#avatar-girl').hidden = $('#avatar-boy').hidden = account?.role !== 'member';
   $('#avatar-select').value = account?.avatar === 'girl' || account?.avatar === 'boy' ? account.avatar : 'member';
@@ -381,12 +473,12 @@ function mode(next) {
 function closeLibrary(message = '') {
   shared = false;
   syncSharedTour();
-  if ($('#shared-tour-dialog').open) $('#shared-tour-dialog').close();
+  closeDialog($('#shared-tour-dialog'));
   setAmbience(false);
-  if ($('#book-dialog').open) $('#book-dialog').close();
-  if ($('#shelf-dialog').open) $('#shelf-dialog').close();
-  if ($('#tour-map-dialog').open) $('#tour-map-dialog').close();
-  if ($('#tour-menu-dialog').open) $('#tour-menu-dialog').close();
+  closeDialog($('#book-dialog'));
+  closeDialog($('#shelf-dialog'));
+  closeDialog($('#tour-map-dialog'));
+  closeDialog($('#tour-menu-dialog'));
   setSession(null, null);
   state.books = [];
   state.categories.clear();
@@ -456,7 +548,7 @@ async function chooseAvatar(avatar) {
 }
 $('#avatar-select').addEventListener('change', event => chooseAvatar(event.currentTarget.value));
 document.querySelectorAll('[data-avatar-choice]').forEach(button => button.addEventListener('click', () => {
-  button.closest('dialog').close();
+  closeDialog(button.closest('dialog'));
   chooseAvatar(button.dataset.avatarChoice);
 }));
 loginForm.addEventListener('submit', event => {
@@ -736,7 +828,7 @@ function openBook(book, startReading = false) {
   readingReady = request('/api/study/' + encodeURIComponent(book.id)).then(result => {
     if (state.book === book) { bookReading = result.reading; renderBookStudy(); }
   }).catch(error => { if (state.book === book) status($('#study-book-status'), error.message, true); });
-  dialog.showModal();
+  openDialog(dialog);
   tour?.setVisible(false);
   syncSharedTour();
   if (startReading && state.account.readBooks) $('#read-book').click();
@@ -825,7 +917,7 @@ $('#favorite-book').addEventListener('click', () => saveBookStudy({ favorite: !b
 $('#locate-book').addEventListener('click', () => {
   const book = state.book;
   if (!book || !tour) return;
-  dialog.close();
+  closeDialog(dialog);
   $('#library-tour').scrollIntoView({ behavior: 'instant' });
   tour.setVisible(true);
   tour.locate(book);
@@ -844,7 +936,7 @@ $('#note-book-form').addEventListener('submit', async event => {
 });
 document.addEventListener('selectionchange', () => {
   const text = window.getSelection();
-  if (dialog.open && text.anchorNode && $('#reader').contains(text.anchorNode) && text.toString().trim()) selection = text.toString().trim();
+  if (isDialogOpen(dialog) && text.anchorNode && $('#reader').contains(text.anchorNode) && text.toString().trim()) selection = text.toString().trim();
 });
 $('#highlight-book').addEventListener('click', () => {
   if (selection && activePage) saveBookStudy({ note: { page: activePage, quote: selection } });
@@ -956,7 +1048,7 @@ $('#book-summarise').addEventListener('click', async event => {
 
 async function pagination(total, render, signal) {
   await readingReady;
-  if (!dialog.open || signal.aborted) return;
+  if (!isDialogOpen(dialog) || signal.aborted) return;
   const previous = node('button', 'Previous', 'outline');
   const next = node('button', 'Next', 'outline');
   const label = node('span');
@@ -977,7 +1069,7 @@ async function pagination(total, render, signal) {
     label.textContent = `${page} of ${total}`;
     try {
       await render(page, content);
-      if (!dialog.open || signal.aborted) return;
+      if (!isDialogOpen(dialog) || signal.aborted) return;
       activePage = page;
       $('#reader-annotations').hidden = false;
       renderBookStudy();
@@ -988,7 +1080,7 @@ async function pagination(total, render, signal) {
         dialog.scrollTop += content.getBoundingClientRect().top - dialog.getBoundingClientRect().top - dialog.clientTop;
       }
     }
-    catch (error) { if (dialog.open) status($('#reader-status'), error.message, true); }
+    catch (error) { if (isDialogOpen(dialog)) status($('#reader-status'), error.message, true); }
     finally { busy = false; }
     previous.disabled = page === 1;
     next.disabled = page >= total;

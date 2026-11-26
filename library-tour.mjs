@@ -649,7 +649,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     if (!walker) return;
     return {
       x: walker.root.position.x, z: walker.root.position.z, facing: walker.root.rotation.y,
-      walking: Boolean(moving.size || animation)
+      area: stop.id, walking: Boolean(moving.size || animation)
     };
   }
 

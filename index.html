@@ -20,6 +20,7 @@
     </a>
     <nav class="navigation" aria-label="Library navigation">
       <button class="quiet" type="button" id="lightweight" aria-pressed="false">Lightweight mode</button>
+      <button class="quiet" type="button" id="library-menu-button" aria-haspopup="dialog" hidden>Menu</button>
       <label class="avatar-menu" id="avatar-menu" hidden><span class="visually-hidden">Your avatar</span><select id="avatar-select"><option value="member">Choose avatar</option><option value="girl">Girl avatar</option><option value="boy">Boy avatar</option></select></label>
       <button class="quiet" type="button" id="sign-out" hidden>Sign out</button>
     </nav>
@@ -118,8 +119,7 @@
             <button type="button" class="outline" id="walk-menu-button" aria-pressed="false">Walk</button>
             <button type="button" class="outline" id="compact-shelf-books" hidden>Shelf</button>
             <button type="button" class="outline" id="map-menu-button">Map</button>
-            <button type="button" class="outline" data-wave hidden>Wave</button>
-            <button type="button" class="outline" id="tour-menu-button">Menu</button>
+            <button type="button" class="outline" data-shared-tour aria-haspopup="dialog">People</button>
           </nav>
         </div>
       </section>
@@ -273,7 +273,7 @@
     <div id="reader"></div>
   </dialog>
   <dialog id="edit-dialog" aria-labelledby="edit-title"></dialog>
-  <dialog id="shelf-dialog" aria-labelledby="shelf-dialog-title">
+  <dialog class="library-sheet" id="shelf-dialog" aria-labelledby="shelf-dialog-title">
     <div class="book-dialog-header">
       <h2 class="section-title" id="shelf-dialog-title">Books on this shelf</h2>
       <form method="dialog"><button class="outline" aria-label="Close shelf">Close</button></form>
@@ -285,7 +285,7 @@
       <button class="outline" type="button" id="compact-shelf-next">Next shelf</button>
     </div>
   </dialog>
-  <dialog id="tour-map-dialog" aria-labelledby="tour-map-title">
+  <dialog class="library-sheet" id="tour-map-dialog" aria-labelledby="tour-map-title">
     <div class="book-dialog-header">
       <h2 class="section-title" id="tour-map-title">Floor plan</h2>
       <form method="dialog"><button class="outline" aria-label="Close map">Close</button></form>
@@ -299,7 +299,7 @@
       <button class="outline" type="button" data-stop="portrait" hidden>Portrait Gallery</button>
     </div>
   </dialog>
-  <dialog id="tour-menu-dialog" aria-labelledby="tour-menu-title">
+  <dialog class="library-sheet" id="tour-menu-dialog" aria-labelledby="tour-menu-title">
     <div class="book-dialog-header">
       <h2 class="section-title" id="tour-menu-title">Library menu</h2>
       <form method="dialog"><button class="outline" aria-label="Close menu">Close</button></form>
@@ -308,14 +308,14 @@
       <a class="outline" href="#shelves" data-drawer-close>Find a book</a>
       <button class="outline" type="button" data-study data-drawer-close>Private study</button>
       <button class="outline" type="button" id="compact-office" data-drawer-close hidden>Ria’s Office</button>
-      <button class="outline" type="button" id="compact-light" aria-pressed="false">Night lighting</button>
-      <button class="outline" type="button" data-sound aria-pressed="false">Ambience</button>
-      <button class="outline" type="button" data-shared-tour>Shared tour</button>
+      <button class="outline" type="button" id="compact-light" aria-pressed="false" data-tour-only>Night lighting</button>
+      <button class="outline" type="button" data-sound aria-pressed="false" data-tour-only>Ambience</button>
+      <button class="outline" type="button" data-shared-tour data-tour-only>Shared tour</button>
       <button class="outline" type="button" id="avatar-girl" data-avatar-choice="girl" hidden>Use girl avatar</button>
       <button class="outline" type="button" id="avatar-boy" data-avatar-choice="boy" hidden>Use boy avatar</button>
     </div>
   </dialog>
-  <dialog id="shared-tour-dialog" aria-labelledby="shared-tour-title">
+  <dialog class="library-sheet" id="shared-tour-dialog" aria-labelledby="shared-tour-title">
     <div class="book-dialog-header">
       <h2 class="section-title" id="shared-tour-title">Shared tour</h2>
       <form method="dialog"><button class="outline" type="submit" aria-label="Close shared tour">Close</button></form>
@@ -323,9 +323,12 @@
     <p>When you join, other participants can see your username, avatar, and position in the library. Sharing pauses while you read.</p>
     <div class="office-actions">
       <button class="brass" type="button" id="join-shared-tour" aria-pressed="false">Join shared tour</button>
+      <button class="outline" type="button" data-wave hidden>Wave</button>
+      <button class="outline" type="button" id="meet-grand-hall" hidden>Meet in Grand Hall</button>
     </div>
     <p id="shared-tour-status" class="form-status" role="status"></p>
-    <ul id="shared-tour-members" aria-label="Members nearby" hidden></ul>
+    <ul id="shared-tour-members" aria-label="Members in the shared tour" hidden></ul>
   </dialog>
+  <div id="sheet-backdrop" aria-hidden="true" hidden></div>
 </body>
 </html>
