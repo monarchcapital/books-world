@@ -20,6 +20,7 @@
     </a>
     <nav class="navigation" aria-label="Library navigation">
       <button class="quiet" type="button" id="lightweight" aria-pressed="false">Lightweight mode</button>
+      <label class="avatar-menu" id="avatar-menu" hidden><span class="visually-hidden">Your avatar</span><select id="avatar-select"><option value="member">Choose avatar</option><option value="girl">Girl avatar</option><option value="boy">Boy avatar</option></select></label>
       <button class="quiet" type="button" id="sign-out" hidden>Sign out</button>
     </nav>
   </header>
@@ -49,6 +50,11 @@
           <form id="access-form">
             <label>Username<input name="username" required minlength="3" maxlength="32" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Your username"></label>
             <label>Password<input name="password" required type="password" maxlength="128" autocomplete="current-password" placeholder="Your password"></label>
+            <fieldset id="avatar-field" class="avatar-field" hidden disabled>
+              <legend>Choose a tour avatar</legend>
+              <label><input type="radio" name="avatar" value="girl" checked><svg width="23" height="26" aria-hidden="true" viewBox="0 0 24 26" fill="none"><path d="M5 15v-5c0-4.2 2.5-7 7-7s7 2.8 7 7v5m-13 9v-2c0-4 3-6 6-6s6 2 6 6v2m-2-14c0 2.8-1.5 5-4 5s-4-2.2-4-5m0 0c2 0 5-1 6-3" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg> Girl</label>
+              <label><input type="radio" name="avatar" value="boy"><svg width="23" height="26" aria-hidden="true" viewBox="0 0 24 26" fill="none"><path d="M6 24v-2c0-4 3-6 6-6s6 2 6 6v2M7 10V8c0-3 2-5 5-5s5 2 5 5v2c0 2.8-2 5-5 5s-5-2.2-5-5Zm0 0 7-3 3 3" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg> Boy</label>
+            </fieldset>
             <button class="brass" id="access-submit" type="submit">Unlock the doors <span aria-hidden="true">↗</span></button>
           </form>
           <form id="password-form" hidden>
@@ -64,23 +70,35 @@
 
     <section id="library" hidden aria-labelledby="hall-title">
       <section id="library-tour" class="tour" aria-label="Three-dimensional library tour" hidden>
-        <canvas id="tour-canvas" aria-label="Interactive Grand Hall. Drag to look around. Use the arrow keys or the floor plan to move." tabindex="0"></canvas>
+        <canvas id="tour-canvas" aria-label="Interactive library. Walk with W A S D, arrow keys, or the on-screen direction controls." tabindex="0"></canvas>
         <div class="tour-overlay">
           <div class="tour-heading">
             <p class="kicker"><span></span> Ria’s Library</p>
             <h1 id="tour-room" tabindex="-1">The Grand Hall</h1>
-            <p id="tour-instructions">Drag to look around. Select a bookcase or use the floor plan.</p>
+            <p id="tour-instructions">Use W A S D or the arrow controls to walk. Select a bookcase to approach it.</p>
           </div>
           <div id="tour-book-label" class="tour-book-label" aria-hidden="true"></div>
+          <div class="tour-zoom" role="group" aria-label="Tour zoom">
+            <button type="button" class="outline" id="zoom-out" aria-label="Zoom out">−</button>
+            <button type="button" class="outline" id="zoom-in" aria-label="Zoom in">+</button>
+          </div>
+          <div class="walk-controls" role="group" aria-label="Walk around the library">
+            <button type="button" class="outline" data-walk="forward" aria-label="Walk forward">↑</button>
+            <button type="button" class="outline" data-walk="left" aria-label="Walk left">←</button>
+            <button type="button" class="outline" data-walk="back" aria-label="Walk backward">↓</button>
+            <button type="button" class="outline" data-walk="right" aria-label="Walk right">→</button>
+          </div>
           <nav class="tour-map" aria-label="Interactive floor plan">
             <button class="outline" type="button" data-stop="archives">Archives</button>
             <button class="outline" type="button" data-stop="desk">Reading Desk</button>
             <button class="outline" type="button" data-stop="west">West Stacks</button>
             <button class="outline" type="button" data-stop="east">East Gallery</button>
+            <button class="outline" type="button" data-stop="portrait" hidden>Portrait Gallery</button>
             <button class="outline" type="button" data-stop="hall" aria-current="location">Grand Hall</button>
           </nav>
           <div class="tour-actions">
             <a class="brass" href="#shelves">Catalogue <span aria-hidden="true">↓</span></a>
+            <button class="outline" type="button" id="shelf-books" hidden>Books on this shelf</button>
             <button class="outline" type="button" id="tour-office" hidden>Ria’s Office <span id="tour-notifications" class="counter" hidden></span></button>
             <button class="outline" type="button" id="tour-light" aria-pressed="false">Night lighting</button>
             <div class="tour-page" id="tour-page" hidden>
@@ -122,6 +140,52 @@
           </div>
           <p id="office-status" class="form-status" role="status"></p>
           <div id="member-list" class="member-list"></div>
+          <section id="book-management" class="book-management" aria-labelledby="management-title" hidden>
+            <h3 id="management-title">Collection management</h3>
+            <p id="management-stats" class="form-status"></p>
+            <div class="office-actions">
+              <label class="outline file-choice">Upload books<input id="admin-files" type="file" accept=".pdf,.epub" multiple></label>
+              <label class="outline file-choice">Upload folder<input id="admin-folder" type="file" multiple webkitdirectory></label>
+              <button class="outline" id="admin-refresh" type="button">Refresh collection</button>
+            </div>
+            <p id="admin-upload-status" class="form-status" role="status"></p>
+            <progress id="admin-upload-progress" max="100" value="0" hidden aria-label="Book upload progress"></progress>
+            <div id="admin-upload-failures"></div>
+            <div class="office-actions" id="admin-views" aria-label="Collection views">
+              <button class="outline" type="button" data-view="active" aria-pressed="true">All books</button>
+              <button class="outline" type="button" data-view="sorting" aria-pressed="false">The Sorting Room</button>
+              <button class="outline" type="button" data-view="duplicates" aria-pressed="false">Duplicates</button>
+              <button class="outline" type="button" data-view="trash" aria-pressed="false">Recycle bin</button>
+            </div>
+            <p id="admin-status" class="form-status" role="status"></p>
+            <label class="admin-field">Find a book<input id="admin-search" type="search" placeholder="Title, author or ISBN"></label>
+            <div class="office-actions">
+              <button class="outline" type="button" id="admin-select-all">Select this page</button>
+              <button class="outline" type="button" id="admin-trash">Move selection to recycle bin</button>
+              <button class="outline" type="button" id="admin-restore" hidden>Restore selection</button>
+              <select id="admin-genre" aria-label="Genre for selected books"></select>
+              <button class="outline" type="button" id="admin-categorise">Categorise selection</button>
+            </div>
+            <div id="admin-book-list" class="member-list"></div>
+            <div class="office-actions">
+              <button class="outline" type="button" id="admin-prev">Previous page</button>
+              <span id="admin-page" aria-live="polite"></span>
+              <button class="outline" type="button" id="admin-next">Next page</button>
+            </div>
+            <details class="office-details">
+              <summary>Categories and recent changes</summary>
+              <form id="category-form" class="office-actions">
+                <label>Category identifier<input name="genre" required pattern="[a-z][a-z0-9\-]{0,39}" placeholder="e.g. economics"></label>
+                <label>Category name<input name="name" placeholder="e.g. Economics" maxlength="70"></label>
+                <label>Merge into<select name="into" id="category-target"></select></label>
+                <button class="outline" type="submit">Save category</button>
+              </form>
+              <div class="office-actions">
+                <select id="admin-history" aria-label="Recent changes"></select>
+                <button class="outline" type="button" id="admin-undo">Undo selected change</button>
+              </div>
+            </details>
+          </section>
         </div>
       </section>
     </section>
@@ -139,6 +203,14 @@
     </div>
     <p class="form-status" id="reader-status" role="status"></p>
     <div id="reader"></div>
+  </dialog>
+  <dialog id="edit-dialog" aria-labelledby="edit-title"></dialog>
+  <dialog id="shelf-dialog" aria-labelledby="shelf-dialog-title">
+    <div class="book-dialog-header">
+      <h2 class="section-title" id="shelf-dialog-title">Books on this shelf</h2>
+      <form method="dialog"><button class="outline" aria-label="Close shelf">Close</button></form>
+    </div>
+    <div id="shelf-dialog-list" class="shelf-dialog-list"></div>
   </dialog>
 </body>
 </html>

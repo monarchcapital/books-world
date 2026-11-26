@@ -5,7 +5,8 @@ const stops = [
   { id: 'west', name: 'West Stacks', position: [-2.25, 1.68, 4.4], look: [-4.85, 1.7, 4.4] },
   { id: 'east', name: 'East Gallery', position: [2.25, 1.68, -.3], look: [4.85, 1.7, -.3] },
   { id: 'archives', name: 'The Archives', position: [-2.25, 1.68, -5], look: [-4.85, 1.7, -5] },
-  { id: 'desk', name: 'Reading Desk', position: [0, 1.65, -6.1], look: [0, 1.05, -8.7] }
+  { id: 'desk', name: 'Reading Desk', position: [0, 1.65, -6.1], look: [0, 1.05, -8.7] },
+  { id: 'portrait', name: 'Portrait Gallery', position: [3.65, 2.22, -10.2], look: [3.6, 2.82, -13.28] }
 ];
 
 const shelfAreas = {
@@ -18,8 +19,8 @@ const width = 3.8;
 const vector = values => new THREE.Vector3(...values);
 const easing = value => 1 - Math.pow(1 - value, 3);
 const colours = [0x54332c, 0x3a4235, 0x704d37, 0x353b44, 0x613c29, 0x4e3543, 0x34302c, 0x6e5a3f];
-const timber = new THREE.MeshStandardMaterial({ color: 0x513628, roughness: .81 });
-const trim = new THREE.MeshStandardMaterial({ color: 0x79533a, roughness: .72 });
+const timber = new THREE.MeshStandardMaterial({ color: 0x9a7355, roughness: .81 });
+const trim = new THREE.MeshStandardMaterial({ color: 0xbf926a, roughness: .72 });
 const brass = new THREE.MeshStandardMaterial({ color: 0xb58b52, metalness: .54, roughness: .52 });
 const stone = new THREE.MeshStandardMaterial({ color: 0x776955, roughness: .98 });
 const leather = new THREE.MeshStandardMaterial({ color: 0x354235, roughness: .93 });
@@ -133,6 +134,73 @@ function bookObject(book, i, color, interactive = true) {
   return { object, cover };
 }
 
+function person(selection) {
+  const girl = selection === 'girl';
+  const librarian = selection === 'librarian';
+  const root = new THREE.Group();
+  root.scale.setScalar(.83);
+  const cloth = new THREE.MeshStandardMaterial({ color: librarian ? 0x365149 : girl ? 0x804b43 : 0x465a71, roughness: .85 });
+  const trousers = new THREE.MeshStandardMaterial({ color: librarian ? 0x302f31 : girl ? 0x453439 : 0x342d2b, roughness: 1 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xa46f54, roughness: .82 });
+  const hair = new THREE.MeshStandardMaterial({ color: 0x302419, roughness: .96 });
+  const shoes = new THREE.MeshStandardMaterial({ color: 0x302218, roughness: .74 });
+  const orb = (parent, material, position, scale) => {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), material);
+    mesh.position.set(...position);
+    mesh.scale.set(...scale);
+    parent.add(mesh);
+    return mesh;
+  };
+  orb(root, cloth, [0, .94, 0], [.245, .295, .154]);
+  if (girl) {
+    const skirt = new THREE.Mesh(new THREE.CylinderGeometry(.15, .25, .29, 14), cloth);
+    skirt.position.y = .70;
+    root.add(skirt);
+  }
+  orb(root, skin, [0, 1.34, .018], [.137, .176, .126]);
+  orb(root, hair, [0, 1.409, -.027], [.143, .136, .127]);
+  if (girl || librarian) orb(root, hair, [0, 1.28, -.08], [.129, girl ? .202 : .127, .096]);
+  if (librarian) {
+    orb(root, hair, [0, 1.412, -.137], [.081, .092, .066]);
+    for (const x of [-.052, .052]) {
+      const eye = new THREE.Mesh(new THREE.TorusGeometry(.031, .004, 6, 16), brass);
+      eye.position.set(x, 1.359, .133);
+      root.add(eye);
+    }
+    panel(root, brass, [.042, .005, .011], [0, 1.360, .133]);
+    panel(root, brass, [.041, .065, .01], [.108, .99, .15]);
+  }
+  const arms = [], feet = [];
+  for (const side of [-1, 1]) {
+    const arm = new THREE.Group();
+    arm.position.set(side * .208, 1.12, 0);
+    orb(arm, cloth, [0, -.178, 0], [.070, .217, .069]);
+    orb(arm, skin, [0, -.355, .006], [.048, .075, .047]);
+    arm.rotation.z = side * .103;
+    arms.push(arm);
+    root.add(arm);
+    const leg = new THREE.Group();
+    leg.position.set(side * .094, .65, 0);
+    orb(leg, trousers, [0, -.270, 0], [.073, .29, .08]);
+    orb(leg, shoes, [0, -.58, .045], [.086, .061, .137]);
+    feet.push(leg);
+    root.add(leg);
+  }
+  let time = 0;
+  return {
+    root,
+    pace(delta, walking, reduced) {
+      if (walking) time += delta * 12.5;
+      const swing = walking && !reduced ? Math.sin(time) * .42 : 0;
+      for (const index of [0, 1]) {
+        feet[index].rotation.x = swing * (index ? -1 : 1);
+        arms[index].rotation.x = -swing * (index ? -1 : 1);
+      }
+      root.position.y = walking && !reduced ? Math.abs(Math.sin(time)) * .032 : 0;
+    }
+  };
+}
+
 function space(scene, targets) {
   timber.map = texture('#765541', '#2a1e1a');
   trim.map = timber.map;
@@ -163,10 +231,16 @@ function space(scene, targets) {
   panel(scene, window, [1.75, 2.5, .10], [0, 7.6, -13.43]);
   for (const x of [-.9, -.45, 0, .45, .9]) panel(scene, timber, [.06, 2.56, .14], [x, 7.6, -13.32]);
   panel(scene, timber, [1.84, .07, .12], [0, 7.5, -13.32]);
-  const sun = new THREE.DirectionalLight(0xffd9a8, 1.28);
+  const sun = new THREE.DirectionalLight(0xffe3bd, 1.82);
   sun.position.set(-2, 9, -11);
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight(0xf4dcbd, 0x78645e, 1.53));
+  scene.add(new THREE.HemisphereLight(0xffebcf, 0xb2957e, 1.97));
+  scene.add(new THREE.AmbientLight(0xffe6ca, .26));
+  for (const z of [8.5, 4.4, -.3, -5, -10.2]) {
+    const aisleLight = new THREE.PointLight(0xffe2b5, 19, 11, 1.36);
+    aisleLight.position.set(0, 4.8, z);
+    scene.add(aisleLight);
+  }
   const table = panel(scene, trim, [2.95, .115, 1.14], [0, .92, -8.45]);
   table.userData.stop = 'desk';
   targets.push(table);
@@ -195,12 +269,12 @@ function disposeGroup(group) {
   group.clear();
 }
 
-export function createLibraryTour({ canvas, message, onStop, onPick, getCover, onPage }) {
+export function createLibraryTour({ canvas, message, onStop, onPick, compact, getCover, onPage, hasPortrait, getPortrait }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.65));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
+  renderer.toneMappingExposure = 1.34;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x261b15);
   scene.fog = new THREE.FogExp2(0x2e211a, .019);
@@ -217,13 +291,104 @@ export function createLibraryTour({ canvas, message, onStop, onPick, getCover, o
   let stored = [];
   let shelfIndex = 0;
   let press;
+  const fingers = new Map();
+  let gesture;
   let frame = 0;
   let paused = true;
   let lifted;
   let behind;
   let openedCover;
+  let walker;
+  let lastFrame = 0;
+  const moving = new Set();
+  const movementKeys = { w: 'forward', s: 'back', a: 'left', d: 'right', ArrowUp: 'forward', ArrowDown: 'back', ArrowLeft: 'left', ArrowRight: 'right' };
   camera.position.copy(vector(stop.position));
   camera.lookAt(aim);
+
+  function heading() {
+    const direction = aim.clone().sub(camera.position).setY(0);
+    return direction.lengthSq() > .0001 ? direction.normalize() : new THREE.Vector3(0, 0, -1);
+  }
+
+  function follow(distance = 1.9) {
+    if (!walker) return;
+    const forward = heading();
+    const ahead = camera.position.clone().addScaledVector(forward, distance);
+    walker.root.position.set(THREE.MathUtils.clamp(ahead.x, -4.30, 4.30), 0, THREE.MathUtils.clamp(ahead.z, -12.7, 12.0));
+    walker.root.rotation.y = Math.atan2(forward.x, forward.z);
+    walker.root.visible = stop.id !== 'desk';
+  }
+
+  function setAvatar(selection) {
+    if (walker) {
+      scene.remove(walker.root);
+      disposeGroup(walker.root);
+    }
+    walker = person(selection);
+    scene.add(walker.root);
+    follow(2.8);
+    draw();
+  }
+
+  function walk(delta) {
+    const forward = heading();
+    const right = new THREE.Vector3(-forward.z, 0, forward.x);
+    const forwardStep = Number(moving.has('forward')) - Number(moving.has('back'));
+    const sideStep = Number(moving.has('right')) - Number(moving.has('left'));
+    const direction = forward.multiplyScalar(forwardStep).addScaledVector(right, sideStep).normalize();
+    if (!direction.lengthSq()) return;
+    const before = camera.position.clone();
+    const next = before.clone().addScaledVector(direction, delta * 2.35);
+    next.x = THREE.MathUtils.clamp(next.x, -4.15, 4.15);
+    next.z = THREE.MathUtils.clamp(next.z, -11.9, 12.35);
+    if (Math.abs(next.x) < 1.65 && next.z < -7.78 && next.z > -9.18) next.z = before.z;
+    camera.position.copy(next);
+    aim.add(next.clone().sub(before));
+    camera.lookAt(aim);
+    follow(2.48);
+    if (walker) {
+      walker.root.visible = true;
+      walker.root.rotation.y = Math.atan2(direction.x, direction.z);
+      walker.pace(delta, true, reduced.matches);
+    }
+  }
+
+  function movement(direction, value) {
+    if (value) moving.add(direction);
+    else moving.delete(direction);
+    if (!frame && !paused) frame = requestAnimationFrame(animate);
+  }
+
+  function stopMoving() {
+    moving.clear();
+    if (walker) walker.pace(0, false, reduced.matches);
+    draw();
+  }
+
+  if (getPortrait) {
+    getPortrait().then(blob => createImageBitmap(blob, { imageOrientation: 'flipY' })).then(bitmap => {
+      const image = new THREE.Texture(bitmap);
+      image.colorSpace = THREE.SRGBColorSpace;
+      image.needsUpdate = true;
+      const framed = new THREE.Group();
+      framed.position.set(3.58, 2.88, -13.32);
+      scene.add(framed);
+      panel(framed, timber, [2.30, 2.47, .13], [0, 0, .01]);
+      panel(framed, brass, [2.21, 2.34, .08], [0, 0, .085]);
+      panel(framed, trim, [2.10, 2.22, .075], [0, 0, .132]);
+      panel(framed, brass, [1.99, 2.05, .06], [0, 0, .17]);
+      const painting = new THREE.Mesh(new THREE.PlaneGeometry(1.86, 1.86), new THREE.MeshStandardMaterial({ map: image, roughness: .92, emissive: 0x423021, emissiveIntensity: .16 }));
+      painting.position.z = .21;
+      painting.userData.stop = 'portrait';
+      framed.add(painting);
+      targets.push(painting);
+      const glow = new THREE.PointLight(0xffd1a2, 7, 5, 1.55);
+      glow.position.set(3.56, 4.20, -12.66);
+      scene.add(glow);
+      hasPortrait?.(true);
+      draw();
+    }).catch(() => { hasPortrait?.(false); });
+  }
 
   function draw() { if (!paused) renderer.render(scene, camera); }
   function resize() {
@@ -239,6 +404,8 @@ export function createLibraryTour({ canvas, message, onStop, onPick, getCover, o
   function animate(time) {
     frame = 0;
     if (paused) return;
+    const delta = lastFrame ? Math.min((time - lastFrame) / 1000, .045) : .016;
+    lastFrame = time;
     const active = animation;
     if (active) {
       const proportion = Math.min((time - active.start) / active.duration, 1);
@@ -247,9 +414,11 @@ export function createLibraryTour({ canvas, message, onStop, onPick, getCover, o
         animation = null;
         active.done?.();
       }
-    }
+    } else if (moving.size) walk(delta);
+    else if (walker) walker.pace(0, false, reduced.matches);
     draw();
-    if (animation && !frame) frame = requestAnimationFrame(animate);
+    if ((animation || moving.size) && !frame) frame = requestAnimationFrame(animate);
+    else if (!animation && !moving.size) lastFrame = 0;
   }
 
   function transition(duration, update, done) {
@@ -266,6 +435,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, getCover, o
   function go(id, complete) {
     const destination = stops.find(place => place.id === id);
     if (!destination) return;
+    stopMoving();
     if (lifted && !complete) {
       scene.remove(lifted);
       openedCover?.dispose();
@@ -280,7 +450,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, getCover, o
     stop = destination;
     onStop(stop.id);
     if (changedRoom && shelfIndex !== 0) setBooks(stored);
-    else onPage?.(shelfIndex, pageCount(stop.id));
+    else announcePage();
     const origin = camera.position.clone();
     const next = vector(stop.position);
     const oldAim = aim.clone();
@@ -291,11 +461,13 @@ export function createLibraryTour({ canvas, message, onStop, onPick, getCover, o
       camera.position.copy(curve.getPoint(fraction));
       aim.lerpVectors(oldAim, nextAim, fraction);
       camera.lookAt(aim);
+      follow(id === 'hall' ? 2.8 : 1.90);
+      walker?.pace(.05, fraction < 1, reduced.matches);
     }, complete);
   }
 
-  function stage(book, model) {
-    if (paused) return onPick(book);
+  function stage(book, model, touch = false) {
+    if (paused || touch || compact?.matches) return onPick(book);
     const from = model ? model.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(0, 1.5, -7.6);
     const material = new THREE.MeshStandardMaterial({ color: colours[book.title.length % colours.length], roughness: .72 });
     const bookModel = new THREE.Group();
@@ -382,14 +554,17 @@ export function createLibraryTour({ canvas, message, onStop, onPick, getCover, o
   function pageCount(id) {
     return Object.hasOwn(shelfAreas, id) ? Math.ceil(stored.filter(book => inArea(book, id)).length / 45) : 0;
   }
+  function currentPage(id) {
+    return Object.hasOwn(shelfAreas, id) ? stored.filter(book => inArea(book, id)).slice(shelfIndex * 45, (shelfIndex + 1) * 45) : [];
+  }
+  function announcePage() { onPage?.(shelfIndex, pageCount(stop.id), currentPage(stop.id)); }
   function setBooks(books, page = 0) {
     stored = books;
     shelfIndex = page;
     selected = [];
     for (const [id, shelf] of Object.entries(shelves)) {
       disposeGroup(shelf);
-      const matching = books.filter(book => inArea(book, id));
-      const pageBooks = matching.slice(page * 45, page * 45 + 45);
+      const pageBooks = currentPage(id);
       pageBooks.forEach((book, i) => {
         const row = Math.floor(i / 15);
         const column = i % 15;
@@ -399,7 +574,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, getCover, o
         selected.push(cover);
       });
     }
-    onPage?.(shelfIndex, pageCount(stop.id));
+    announcePage();
     draw();
   }
 
@@ -408,13 +583,59 @@ export function createLibraryTour({ canvas, message, onStop, onPick, getCover, o
     pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
     const view = raycaster.intersectObjects([...selected, ...targets], false);
-    return view.find(candidate => candidate.object.visible && candidate.object.parent?.visible)?.object;
+    const hit = view.find(candidate => candidate.object.visible && candidate.object.parent?.visible)?.object;
+    if (event.pointerType !== 'touch' || hit?.userData.book) return hit;
+    let closest = hit;
+    let distance = 18;
+    for (const spine of selected) {
+      const world = spine.getWorldPosition(new THREE.Vector3());
+      if (!spine.parent.visible || world.distanceTo(camera.position) > 4) continue;
+      const location = world.project(camera);
+      if (location.z < -1 || location.z > 1) continue;
+      const difference = Math.hypot((location.x - pointer.x) * bounds.width / 2, (location.y - pointer.y) * bounds.height / 2);
+      if (difference < distance) { distance = difference; closest = spine; }
+    }
+    return closest;
+  }
+  function zoom(change) {
+    camera.fov = THREE.MathUtils.clamp(camera.fov + change, 28, 82);
+    camera.updateProjectionMatrix();
+    draw();
+  }
+  function turn(x, y) {
+    const direction = aim.clone().sub(camera.position);
+    const spherical = new THREE.Spherical().setFromVector3(direction);
+    spherical.theta -= x * .005;
+    spherical.phi = THREE.MathUtils.clamp(spherical.phi - y * .004, .35, 2.48);
+    aim = new THREE.Vector3().setFromSpherical(spherical).add(camera.position);
+    camera.lookAt(aim);
+  }
+  function fingerGeometry() {
+    const [a, b] = [...fingers.values()];
+    return { distance: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   }
   canvas.addEventListener('pointerdown', event => {
-    press = { x: event.clientX, y: event.clientY, moved: false };
+    if (event.pointerType === 'touch') {
+      fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (fingers.size === 2) { gesture = fingerGeometry(); press = null; }
+    }
+    if (fingers.size < 2) press = { x: event.clientX, y: event.clientY, moved: false };
     canvas.setPointerCapture(event.pointerId);
   });
   canvas.addEventListener('pointermove', event => {
+    if (fingers.has(event.pointerId)) {
+      fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (fingers.size > 1) {
+        if (!gesture) gesture = fingerGeometry();
+        const next = fingerGeometry();
+        if (!animation && next.distance > 6 && gesture.distance > 6) {
+          turn((next.x - gesture.x) * .55, (next.y - gesture.y) * .55);
+          zoom(camera.fov * (gesture.distance / next.distance - 1));
+        }
+        gesture = next;
+        return;
+      }
+    }
     if (press && !animation) {
       const x = event.clientX - press.x;
       const y = event.clientY - press.y;
@@ -422,46 +643,48 @@ export function createLibraryTour({ canvas, message, onStop, onPick, getCover, o
         press.moved = true;
         press.x = event.clientX;
         press.y = event.clientY;
-        const direction = aim.clone().sub(camera.position);
-        const spherical = new THREE.Spherical().setFromVector3(direction);
-        spherical.theta -= x * .005;
-        spherical.phi = THREE.MathUtils.clamp(spherical.phi - y * .004, .35, 2.48);
-        aim = new THREE.Vector3().setFromSpherical(spherical).add(camera.position);
-        camera.lookAt(aim);
+        turn(x, y);
         draw();
       }
     } else if (!animation) {
       const object = target(event);
-      const title = object?.userData.book?.title;
+      const title = object?.userData.book?.title || (object?.userData.stop === 'portrait' ? 'View the framed portrait' : '');
       canvas.classList.toggle('can-pick', Boolean(object));
       message.textContent = title || '';
     }
   });
-  canvas.addEventListener('pointercancel', () => { press = null; });
+  canvas.addEventListener('pointercancel', event => { fingers.delete(event.pointerId); gesture = null; press = null; });
   canvas.addEventListener('pointerup', event => {
+    fingers.delete(event.pointerId);
+    if (gesture) { if (fingers.size < 2) gesture = null; press = null; return; }
     if (press && !press.moved && !animation) {
       const object = target(event);
-      if (object?.userData.book) stage(object.userData.book, object.userData.model);
+      if (object?.userData.book) stage(object.userData.book, object.userData.model, event.pointerType === 'touch');
       else if (object?.userData.stop) go(object.userData.stop);
     }
     press = null;
   });
   canvas.addEventListener('pointerleave', () => { message.textContent = ''; });
-  canvas.addEventListener('keydown', event => {
-    const directions = { ArrowLeft: 'west', ArrowRight: 'east', ArrowUp: 'desk', ArrowDown: 'archives', Home: 'hall' };
-    if (!directions[event.key]) return;
+  function keyMove(event, down) {
+    const direction = movementKeys[event.key] || movementKeys[event.key.toLowerCase()];
+    const bounds = canvas.getBoundingClientRect();
+    if (!direction || paused || (down && (event.altKey || event.ctrlKey || event.metaKey ||
+      bounds.bottom < 150 || bounds.top >= innerHeight || event.target.closest?.('input,select,textarea,dialog,[contenteditable=true]') || document.querySelector('dialog[open]')))) return;
     event.preventDefault();
-    go(directions[event.key]);
-  });
+    movement(direction, down);
+  }
+  window.addEventListener('keydown', event => keyMove(event, true));
+  window.addEventListener('keyup', event => keyMove(event, false));
+  window.addEventListener('blur', stopMoving);
   canvas.addEventListener('webglcontextlost', event => {
     event.preventDefault();
     canvas.dispatchEvent(new CustomEvent('tourunavailable'));
   });
 
   return {
-    go, stage, setBooks,
+    go, stage, setBooks, setAvatar, movement, stopMoving, zoom,
     page: step => setBooks(stored, Math.max(0, Math.min(shelfIndex + step, pageCount(stop.id) - 1))),
-    setVisible(visible) { paused = !visible; if (visible) resize(); },
-    setLighting(night) { renderer.toneMappingExposure = night ? .58 : 1.12; draw(); }
+    setVisible(visible) { paused = !visible; if (visible) resize(); else stopMoving(); },
+    setLighting(night) { renderer.toneMappingExposure = night ? .72 : 1.34; draw(); }
   };
 }

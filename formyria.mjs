@@ -2,6 +2,7 @@ const $ = selector => document.querySelector(selector);
 const body = document.body;
 const api = body.dataset.libraryApi;
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
+const compact = matchMedia('(max-width: 850px), (pointer: coarse)');
 const state = { token: storage('sessionStorage', 'formyria-session'), account: null, mode: 'login', books: [], categories: new Map(), book: null };
 const loginForm = $('#access-form');
 const passwordForm = $('#password-form');
@@ -11,16 +12,18 @@ const catalogueStatus = $('#catalogue-status');
 let tour;
 let tourLoading;
 let tourFailed = false;
+let currentShelfBooks = [];
 
 function showStop(place) {
-  const names = { hall: 'The Grand Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk' };
+  const names = { hall: 'The Grand Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery' };
   $('#tour-room').textContent = names[place];
   $('#tour-instructions').textContent = {
-    hall: 'Drag to look around. Select a bookcase or use the floor plan.',
+    hall: 'Walk with W A S D, the arrow keys, or the on-screen arrows. Select a bookcase to approach it.',
     west: 'History, fiction, literature, philosophy and biography. Select a book by its spine.',
     east: 'Science, technology, business and finance. Select a book by its spine.',
     archives: 'Reference books and works awaiting classification. Select a book by its spine.',
-    desk: 'Pick a book from a stack or the catalogue to bring it to the desk.'
+    desk: 'Pick a book from a stack or the catalogue to bring it to the desk.',
+    portrait: 'The framed portrait hangs at the far end of the hall.'
   }[place];
   for (const control of document.querySelectorAll('[data-stop]')) {
     if (control.dataset.stop === place) control.setAttribute('aria-current', 'location');
@@ -43,15 +46,20 @@ async function loadTour() {
   if (!tourLoading) {
     tourLoading = import('./library-tour.mjs').then(module => {
       tour = module.createLibraryTour({
-        canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, onPick: openBook,
+        canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, onPick: openBook, compact,
         getCover: async book => (await request(filePath(book, 'cover'), { raw: true })).blob(),
-        onPage(index, total) {
+        getPortrait: async () => (await request('/api/art/portrait', { raw: true })).blob(),
+        hasPortrait: available => { $('[data-stop="portrait"]').hidden = !available; },
+        onPage(index, total, books) {
+          currentShelfBooks = books;
+          $('#shelf-books').hidden = books.length === 0;
           $('#tour-page').hidden = total < 2;
           $('#tour-page-label').textContent = 'Shelf ' + (index + 1) + ' of ' + total;
           $('#tour-prev').disabled = index === 0;
           $('#tour-next').disabled = index + 1 >= total;
         }
       });
+      tour.setAvatar(state.account?.avatar || (state.account?.role === 'admin' ? 'librarian' : 'member'));
       tour.setBooks(state.books);
     }).catch(error => {
       console.warn('The interactive tour could not start.', error.message);
@@ -68,6 +76,42 @@ document.querySelectorAll('[data-stop]').forEach(control => {
 $('#tour-canvas').addEventListener('tourunavailable', () => { tourFailed = true; showTour(false); });
 $('#tour-prev').addEventListener('click', () => tour?.page(-1));
 $('#tour-next').addEventListener('click', () => tour?.page(1));
+$('#zoom-in').addEventListener('click', () => tour?.zoom(-8));
+$('#zoom-out').addEventListener('click', () => tour?.zoom(8));
+$('#shelf-books').addEventListener('click', () => {
+  const dialog = $('#shelf-dialog');
+  const choices = currentShelfBooks.map(book => {
+    const button = node('button', book.title, 'outline');
+    button.type = 'button';
+    button.append(node('small', [book.author, book.format.toUpperCase()].filter(Boolean).join(' · ')));
+    button.addEventListener('click', () => { dialog.close(); openBook(book); });
+    return button;
+  });
+  $('#shelf-dialog-list').replaceChildren(...choices);
+  if (choices.length) dialog.showModal();
+});
+document.querySelectorAll('[data-walk]').forEach(control => {
+  let started = 0;
+  let stop;
+  const move = pressed => {
+    control.setAttribute('aria-pressed', String(pressed));
+    tour?.movement(control.dataset.walk, pressed);
+  };
+  control.addEventListener('pointerdown', event => {
+    control.setPointerCapture(event.pointerId);
+    clearTimeout(stop);
+    started = performance.now();
+    move(true);
+  });
+  control.addEventListener('pointerup', () => { stop = setTimeout(() => move(false), Math.max(0, 150 - (performance.now() - started))); });
+  control.addEventListener('pointercancel', () => move(false));
+  control.addEventListener('click', event => {
+    if (event.detail !== 0) return;
+    clearTimeout(stop);
+    move(true);
+    stop = setTimeout(() => move(false), 170);
+  });
+});
 $('#tour-light').addEventListener('click', event => {
   const control = event.currentTarget;
   const night = control.getAttribute('aria-pressed') !== 'true';
@@ -102,14 +146,17 @@ function setSession(token, account) {
   state.account = account;
   storage('sessionStorage', 'formyria-session', token);
   $('#sign-out').hidden = !token;
+  $('#avatar-menu').hidden = account?.role !== 'member';
+  $('#avatar-select').value = account?.avatar === 'girl' || account?.avatar === 'boy' ? account.avatar : 'member';
+  if (account && tour) tour.setAvatar(account.avatar || (account.role === 'admin' ? 'librarian' : 'member'));
 }
 
 async function request(path, options = {}) {
-  const { method = 'GET', data, raw = false, credential = true, signal } = options;
-  const headers = new Headers();
+  const { method = 'GET', data, body, raw = false, credential = true, signal, headers: extra = {} } = options;
+  const headers = new Headers(extra);
   if (credential && state.token) headers.set('Authorization', 'Bearer ' + state.token);
   if (data !== undefined) headers.set('Content-Type', 'application/json');
-  const response = await fetch(api + path, { method, headers, body: data === undefined ? undefined : JSON.stringify(data), cache: 'no-store', signal });
+  const response = await fetch(api + path, { method, headers, body: data === undefined ? body : JSON.stringify(data), cache: 'no-store', signal });
   if (raw && response.ok) return response;
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -125,6 +172,7 @@ function mode(next) {
   loginForm.hidden = next === 'password';
   passwordForm.hidden = next !== 'password';
   $('#auth-tabs').hidden = next === 'password';
+  $('#avatar-field').hidden = $('#avatar-field').disabled = next !== 'register';
   $('#login-tab').setAttribute('aria-pressed', String(next === 'login'));
   $('#register-tab').setAttribute('aria-pressed', String(next === 'register'));
   $('#gate-title').textContent = { login: 'Enter the library', register: 'Request membership', password: 'Change your initial password' }[next];
@@ -138,6 +186,7 @@ function mode(next) {
 
 function closeLibrary(message = '') {
   if ($('#book-dialog').open) $('#book-dialog').close();
+  if ($('#shelf-dialog').open) $('#shelf-dialog').close();
   setSession(null, null);
   state.books = [];
   state.categories.clear();
@@ -189,6 +238,18 @@ async function submit(form, task) {
 
 $('#login-tab').addEventListener('click', () => mode('login'));
 $('#register-tab').addEventListener('click', () => mode('register'));
+$('#avatar-select').addEventListener('change', async event => {
+  const select = event.currentTarget;
+  if (select.value === 'member') { select.value = state.account?.avatar || 'member'; return; }
+  select.disabled = true;
+  try {
+    const result = await request('/api/auth/avatar', { method: 'PATCH', data: { avatar: select.value } });
+    setSession(state.token, result.account);
+  } catch (error) {
+    select.value = state.account?.avatar || 'member';
+    status(catalogueStatus, error.message, true);
+  } finally { select.disabled = false; }
+});
 loginForm.addEventListener('submit', event => {
   event.preventDefault();
   const accessMode = state.mode;
@@ -283,7 +344,7 @@ function renderShelves() {
     button.type = 'button';
     button.append(node('small', [book.author, book.format.toUpperCase()].filter(Boolean).join(' · ')));
     button.addEventListener('click', () => {
-      if ($('#library-tour').hidden || !tour) openBook(book);
+      if ($('#library-tour').hidden || !tour || compact.matches) openBook(book);
       else {
         $('#library-tour').scrollIntoView({ behavior: 'instant' });
         tour.stage(book);
@@ -375,6 +436,7 @@ function openOffice() {
   $('#office-title').focus({ preventScroll: true });
   $('#office').scrollIntoView({ behavior: motion.matches ? 'instant' : 'smooth' });
   Promise.all([loadMembers(), loadNotifications()]);
+  import('./admin-office.mjs').then(module => module.openCollectionOffice({ request, loadCatalogue })).catch(error => status(officeStatus, error.message, true));
 }
 $('#office-button').addEventListener('click', openOffice);
 $('#tour-office').addEventListener('click', openOffice);
@@ -389,6 +451,7 @@ const dialog = $('#book-dialog');
 let readController;
 let readerCleanup;
 function openBook(book) {
+  tour?.stopMoving();
   state.book = book;
   $('#selected-format').textContent = [book.format.toUpperCase(), state.categories.get(book.genre)].filter(Boolean).join(' · ');
   $('#book-title').textContent = book.title;
