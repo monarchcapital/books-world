@@ -3,77 +3,114 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Search Ria’s Library and download books in your preferred format.">
-  <title>Ria’s Library</title>
-  <link rel="stylesheet" href="./styles.css">
-  <script src="./catalog.js" defer></script>
-  <script src="./upload.js" defer></script>
+  <meta name="description" content="The private entrance to Ria’s Library.">
+  <meta name="theme-color" content="#181411">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://rias-library.nutmegarbor1.chatgpt.site; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <title>Ria’s Library · Formyria</title>
+  <link rel="stylesheet" href="./formyria.css">
+  <script src="./formyria.mjs" type="module"></script>
 </head>
-<body data-upload-api="https://rias-library.nutmegarbor1.chatgpt.site">
-  <header class="masthead">
-    <div class="wrap masthead-inner">
-      <div class="welcome">
-        <h1>Ria’s <em>Library</em></h1>
-        <p>Find your next favorite read and download it in the format you love.</p>
-        <a class="browse" href="#catalog">Browse the books</a>
-      </div>
-      <figure class="hero-art">
-        <img src="./reading-nook.png" width="1536" height="1024" alt="Painted reading nook with an open book, flowers, and a heart-shaped cup" fetchpriority="high">
-      </figure>
-    </div>
-  </header>
-  <main id="catalog" class="wrap">
-    <div class="catalog-heading">
-      <h2>Browse the shelves</h2>
-      <div class="catalog-actions">
-        <button id="open-folder" class="secondary" type="button">Open local folder</button>
-        <button id="open-upload" class="secondary upload-button" type="button" hidden>Upload a book</button>
-      </div>
-      <input id="folder" type="file" webkitdirectory multiple hidden>
-    </div>
-    <div class="filters" aria-label="Catalog filters">
-      <label for="search">Search books
-        <input id="search" type="search" placeholder="Search by title or author" autocomplete="off" disabled>
-      </label>
-      <label for="format">Format
-        <select id="format" disabled><option value="">All formats</option></select>
-      </label>
-    </div>
-    <fieldset id="genre-filter" class="genre-filter" hidden>
-      <legend>Genres</legend>
-      <div id="genres" class="genre-options"></div>
-    </fieldset>
-    <p id="summary" class="summary" role="status" aria-live="polite">Loading catalog…</p>
-    <ul id="books" class="books" aria-label="Books"></ul>
-    <nav id="pagination" class="pagination" aria-label="Catalog pages" hidden>
-      <button id="previous" class="secondary" type="button">Previous</button>
-      <span id="page-number"></span>
-      <button id="next" class="secondary" type="button">Next</button>
+<body data-library-api="https://rias-library.nutmegarbor1.chatgpt.site">
+  <header class="topbar">
+    <a class="wordmark" href="./" aria-label="Formyria entrance">
+      <svg viewBox="0 0 32 36" width="29" height="33" aria-hidden="true" fill="none"><path d="M3 34V14a13 13 0 0 1 26 0v20H3Z M7 30V14a9 9 0 0 1 18 0v16H7Z M16 13v17 M9 19h14 M12 24h1m6 0h1" stroke="currentColor" stroke-width="1.3"/></svg>
+      <span>FORMYRIA<small>Ria’s Library</small></span>
+    </a>
+    <nav class="navigation" aria-label="Library navigation">
+      <button class="quiet" type="button" id="lightweight" aria-pressed="false">Lightweight mode</button>
+      <button class="quiet" type="button" id="sign-out" hidden>Sign out</button>
     </nav>
-  </main>
-  <dialog id="upload-dialog" class="upload-dialog" aria-labelledby="upload-title">
-    <form id="upload-form">
-      <div class="upload-heading">
-        <h2 id="upload-title">Share a book</h2>
-        <button id="close-upload" class="secondary" type="button">Close</button>
+  </header>
+
+  <main>
+    <section id="entrance" class="entrance" aria-labelledby="entrance-title">
+      <div class="threshold" aria-hidden="true">
+        <div class="threshold-half threshold-left"></div>
+        <div class="threshold-half threshold-right"></div>
+        <div class="threshold-lock"></div>
       </div>
-      <p>Anyone can download your book and see the title, author, and uploader name you enter.</p>
-      <label for="upload-file">Book file
-        <input id="upload-file" name="file" type="file" accept=".pdf,.epub,application/pdf,application/epub+zip" required>
-      </label>
-      <p class="field-help">PDF or EPUB, up to 25 MB.</p>
-      <label for="book-title">Book title
-        <input id="book-title" name="title" type="text" maxlength="140" required>
-      </label>
-      <label for="book-author">Author
-        <input id="book-author" name="author" type="text" maxlength="100" required>
-      </label>
-      <label for="book-uploader">Uploader display name
-        <input id="book-uploader" name="uploader" type="text" maxlength="60" autocomplete="nickname" required>
-      </label>
-      <p id="upload-status" class="upload-status" role="status" aria-live="polite"></p>
-      <button id="publish-upload" class="secondary upload-button" type="submit">Publish book</button>
-    </form>
+      <div class="entrance-content">
+        <div class="entrance-copy">
+          <p class="kicker"><span></span> The private library</p>
+          <h1 id="entrance-title">Ria’s<br><em>Library</em></h1>
+          <p class="entrance-description">A quiet place to read and discover. Membership is approved by the librarian.</p>
+        </div>
+        <div class="gate" id="gate">
+          <div class="gate-heading">
+            <svg aria-hidden="true" width="23" height="25" viewBox="0 0 24 25" fill="none"><path d="M5 11V7a7 7 0 0 1 14 0v4m-17 0h20v13H2zm10 5v4" stroke="currentColor" stroke-width="1.3"/></svg>
+            <h2 id="gate-title">Enter the library</h2>
+          </div>
+          <div id="auth-tabs" class="tabs" aria-label="Account access">
+            <button type="button" id="login-tab" aria-pressed="true">Sign in</button>
+            <button type="button" id="register-tab" aria-pressed="false">Request membership</button>
+          </div>
+          <form id="access-form">
+            <label>Username<input name="username" required minlength="3" maxlength="32" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Your username"></label>
+            <label>Password<input name="password" required type="password" maxlength="128" autocomplete="current-password" placeholder="Your password"></label>
+            <button class="brass" id="access-submit" type="submit">Unlock the doors <span aria-hidden="true">↗</span></button>
+          </form>
+          <form id="password-form" hidden>
+            <label>Current password<input name="currentPassword" required type="password" maxlength="128" autocomplete="current-password"></label>
+            <label>New password<input name="newPassword" required type="password" minlength="10" maxlength="128" autocomplete="new-password"></label>
+            <button class="brass" type="submit">Set password and enter <span aria-hidden="true">↗</span></button>
+          </form>
+          <p id="access-status" class="form-status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+      <div class="entrance-footer"><span>FORMYRIA</span><span>THE ENTRANCE</span></div>
+    </section>
+
+    <section id="library" hidden aria-labelledby="hall-title">
+      <div class="hall-hero">
+        <div class="hall-hero-content layout">
+          <p class="kicker"><span></span> Ria’s Library</p>
+          <h1 id="hall-title" tabindex="-1">The Grand Hall</h1>
+          <div class="hall-actions">
+            <a class="brass" href="#shelves">Explore the shelves <span aria-hidden="true">↓</span></a>
+            <button class="outline" type="button" id="office-button" hidden>Ria’s office <span id="notification-count" class="counter" hidden></span></button>
+          </div>
+        </div>
+      </div>
+      <section class="layout shelves" id="shelves" aria-labelledby="shelf-title">
+        <p class="kicker"><span></span> The catalogue</p>
+        <h2 class="section-title" id="shelf-title">Browse the shelves</h2>
+        <div class="catalogue-controls">
+          <label>Search the catalogue<input id="book-search" type="search" placeholder="Title, author, genre or tag"></label>
+          <label>Genre<select id="genre-filter"><option value="">All genres</option></select></label>
+          <label>Format<select id="format-filter"><option value="">All formats</option><option value="pdf">PDF</option><option value="epub">EPUB</option></select></label>
+        </div>
+        <p id="catalogue-status" class="form-status" role="status"></p>
+        <div id="shelf-display" class="bookcase"></div>
+      </section>
+      <section class="office" id="office" aria-labelledby="office-title" hidden>
+        <div class="layout">
+          <p class="kicker"><span></span> Administration</p>
+          <h2 class="section-title" id="office-title" tabindex="-1">Ria’s Office</h2>
+          <div class="office-toolbar">
+            <h3>Membership requests</h3>
+            <button id="mark-read" type="button" class="outline">Mark notifications as read</button>
+          </div>
+          <p id="office-status" class="form-status" role="status"></p>
+          <div id="member-list" class="member-list"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+  <dialog id="book-dialog" aria-labelledby="book-title">
+    <div class="book-dialog-header">
+      <div><p class="kicker" id="selected-format"></p><h2 class="section-title" id="book-title"></h2></div>
+      <form method="dialog"><button class="outline" aria-label="Close book">Close</button></form>
+    </div>
+    <p id="selected-author"></p>
+    <p id="selected-description"></p>
+    <div class="hall-actions">
+      <button class="brass" type="button" id="read-book">Read book</button>
+      <button class="outline" type="button" id="download-book">Download</button>
+    </div>
+    <p class="form-status" id="reader-status" role="status"></p>
+    <div id="reader"></div>
   </dialog>
 </body>
 </html>
