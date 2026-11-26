@@ -170,6 +170,9 @@ dialog::backdrop { background: #100d14db }
 .reader-study { border: 1px solid #86654766; padding: 10px 12px; margin-top: 15px }
 .reader-study summary { cursor: pointer; font-weight: 650 }
 .reader-study input, .reader-study textarea { background: #f8ecca; color: #302318; border: 1px solid #9e7954; font: inherit; padding: 6px 8px }
+.reader-study select { background: #f8ecca; color: #302318; border: 1px solid #9e7954 }
+#book-summary-result { white-space: pre-wrap }
+#book-summarise { margin-top: 10px }
 .reader-study input::placeholder { color: #69523c }
 .reader-study textarea { width: min(440px, 65vw); max-width: 100%; resize: vertical }
 .study-book-notes article { border-block-start: 1px solid #86654758; margin-top: 12px; padding-top: 10px }

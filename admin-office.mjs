@@ -161,6 +161,10 @@ function editBook(book) {
   cover.type = 'file';
   cover.accept = 'image/jpeg,image/png,image/webp';
   namedInput(form, 'cover', 'Replace cover', cover);
+  const replacement = element('input');
+  replacement.type = 'file';
+  replacement.accept = '.pdf,.epub';
+  namedInput(form, 'file', 'Replace PDF or EPUB', replacement);
   const evidence = (book.evidence || []).filter(Boolean);
   if (evidence.length) form.append(element('p', evidence.join(' · ')));
   const { submit, status } = dialogButtons(form, dialog, 'Save book');
@@ -171,8 +175,17 @@ function editBook(book) {
     try {
       const data = Object.fromEntries(new FormData(form));
       delete data.cover;
+      delete data.file;
       data.tags = data.tags.split(',').map(tag => tag.trim()).filter(Boolean);
       if (cover.files[0]) await saveCover(book.id, cover.files[0]);
+      if (replacement.files[0]) {
+        const result = await uploadBook(replacement.files[0], (fraction, stage) => {
+          status.textContent = stage + ' · ' + Math.round(fraction * 100) + '%';
+        }, true);
+        if (!await change('replace', { id: book.id, withId: result.id, trashReplacement: result.added }, 'Book file replaced.')) {
+          throw new Error($('admin-status').textContent);
+        }
+      }
       if (await change('edit', { ids: [book.id], fields: data })) dialog.close();
       else status.textContent = $('admin-status').textContent;
     } catch (error) { status.textContent = error.message; }
@@ -252,6 +265,38 @@ async function retry(run) {
   }
 }
 
+async function uploadBook(file, progress, replacement = false) {
+  if (file.size > 275 * 1024 * 1024) throw new Error('This file exceeds the upload size limit.');
+  const format = file.name.split('.').pop().toLowerCase();
+  if (!['pdf', 'epub'].includes(format)) throw new Error('Choose a PDF or EPUB.');
+  progress(0, 'Inspecting ' + file.name);
+  const digest = await hash(await file.arrayBuffer());
+  const details = await inspect(file, format);
+  const result = await retry(() => connection.request('/api/admin/imports', {
+    method: 'POST', data: { ...details, id: digest, sha256: digest, size: file.size, format, replacement }
+  }));
+  if (result.status !== 'uploading') return { id: result.duplicateOf || result.id, added: false };
+  const key = '/api/admin/imports/' + digest;
+  try {
+    if (!result.stored) {
+      for (let offset = 0, part = 1; offset < file.size; offset += result.chunkSize, part++) {
+        if (result.parts.includes(part)) continue;
+        const body = file.slice(offset, offset + result.chunkSize);
+        const checksum = await hash(await body.arrayBuffer());
+        await retry(() => connection.request(key + '/parts/' + part, {
+          method: 'PUT', body, headers: { 'Content-Type': 'application/octet-stream', 'X-Part-SHA256': checksum }
+        }));
+        progress(Math.min(1, (offset + body.size) / file.size), 'Uploading ' + file.name + ' · Part ' + part);
+      }
+    }
+    await retry(() => connection.request(key + '/complete', { method: 'POST', data: {} }));
+    return { id: digest, added: true };
+  } catch (error) {
+    await connection.request(key + '/failure', { method: 'POST', data: { error: error.message } }).catch(() => {});
+    throw error;
+  }
+}
+
 async function uploadFiles(files) {
   if (uploading) return;
   const selected = [...files].filter(file => /\.(pdf|epub)$/i.test(file.name));
@@ -267,35 +312,16 @@ async function uploadFiles(files) {
   for (const file of selected) {
     index++;
     message('admin-upload-status', 'Inspecting ' + file.name + ' · ' + index + ' of ' + selected.length);
-    let key;
     try {
-      if (file.size > 275 * 1024 * 1024) throw new Error('This file exceeds the upload size limit.');
-      const format = file.name.split('.').pop().toLowerCase();
-      const digest = await hash(await file.arrayBuffer());
-      const details = await inspect(file, format);
-      const result = await retry(() => connection.request('/api/admin/imports', {
-        method: 'POST', data: { ...details, id: digest, sha256: digest, size: file.size, format }
-      }));
-      if (result.status !== 'uploading') { stats.skipped++; continue; }
-      key = '/api/admin/imports/' + digest;
-      if (!result.stored) {
-        for (let offset = 0, part = 1; offset < file.size; offset += result.chunkSize, part++) {
-          if (result.parts.includes(part)) continue;
-          message('admin-upload-status', 'Uploading ' + file.name + ' · Part ' + part);
-          const body = file.slice(offset, offset + result.chunkSize);
-          const checksum = await hash(await body.arrayBuffer());
-          await retry(() => connection.request(key + '/parts/' + part, {
-            method: 'PUT', body, headers: { 'Content-Type': 'application/octet-stream', 'X-Part-SHA256': checksum }
-          }));
-          progress.value = 100 * (index - 1 + Math.min(1, (offset + body.size) / file.size)) / selected.length;
-        }
-      }
-      await retry(() => connection.request(key + '/complete', { method: 'POST', data: {} }));
-      stats.uploaded++;
+      const result = await uploadBook(file, (fraction, stage) => {
+        message('admin-upload-status', stage + ' · ' + index + ' of ' + selected.length);
+        progress.value = 100 * (index - 1 + fraction) / selected.length;
+      });
+      if (result.added) stats.uploaded++;
+      else stats.skipped++;
     } catch (error) {
       stats.failed++;
       failures.append(element('p', file.name + ' — ' + error.message));
-      if (key) await connection.request(key + '/failure', { method: 'POST', data: { error: error.message } }).catch(() => {});
     } finally { progress.value = index / selected.length * 100; }
   }
   uploading = false;

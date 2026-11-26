@@ -14,6 +14,8 @@ let tourLoading;
 let tourFailed = false;
 let currentShelfBooks = [];
 let aimedBook;
+let roomSound;
+let soundEnabled = false;
 
 function showStop(place) {
   const names = { hall: 'The Grand Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery' };
@@ -159,6 +161,46 @@ function setNight() {
 $('#tour-light').addEventListener('click', setNight);
 $('#compact-light').addEventListener('click', setNight);
 
+function makeRoomSound() {
+  const graph = new AudioContext();
+  const length = graph.sampleRate * 5;
+  const buffer = graph.createBuffer(1, length, graph.sampleRate);
+  const values = buffer.getChannelData(0);
+  let sample = 0;
+  for (let index = 0; index < length; index++) {
+    sample = sample * .84 + (Math.random() * 2 - 1) * .16;
+    const blend = Math.min(1, index / 1200, (length - 1 - index) / 1200);
+    values[index] = sample * blend;
+  }
+  const loop = graph.createBufferSource();
+  loop.buffer = buffer;
+  loop.loop = true;
+  const filter = graph.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 380;
+  const volume = graph.createGain();
+  volume.gain.value = .13;
+  loop.connect(filter).connect(volume).connect(graph.destination);
+  loop.start();
+  return graph;
+}
+
+async function setAmbience(enabled) {
+  if (!('AudioContext' in window)) return;
+  try {
+    if (enabled) {
+      roomSound ??= makeRoomSound();
+      await roomSound.resume();
+    } else await roomSound?.suspend();
+    soundEnabled = enabled;
+    for (const control of document.querySelectorAll('[data-sound]')) control.setAttribute('aria-pressed', String(enabled));
+  } catch { soundEnabled = false; }
+}
+document.querySelectorAll('[data-sound]').forEach(button => {
+  button.hidden = !('AudioContext' in window);
+  button.addEventListener('click', () => setAmbience(!soundEnabled));
+});
+
 function storage(type, key, value) {
   try {
     const store = window[type];
@@ -225,6 +267,7 @@ function mode(next) {
 }
 
 function closeLibrary(message = '') {
+  setAmbience(false);
   if ($('#book-dialog').open) $('#book-dialog').close();
   if ($('#shelf-dialog').open) $('#shelf-dialog').close();
   if ($('#tour-map-dialog').open) $('#tour-map-dialog').close();
@@ -545,6 +588,8 @@ let readingReady;
 let activePage = 0;
 let showReaderPage;
 let selection = '';
+let readerText;
+let findController;
 const readingDefaults = () => ({ page: 1, total: 1, favorite: false, collections: [], bookmarks: [], notes: [] });
 
 function openBook(book) {
@@ -553,6 +598,13 @@ function openBook(book) {
   activePage = 0;
   showReaderPage = null;
   selection = '';
+  readerText = undefined;
+  $('#book-text-tools').hidden = true;
+  $('#book-reviews').open = false;
+  $('#book-review-list').replaceChildren();
+  $('#review-form').reset();
+  status($('#review-status'));
+  status($('#book-summary-result'));
   bookReading = readingDefaults();
   $('#reader-annotations').hidden = true;
   $('#reader-study').open = false;
@@ -563,6 +615,7 @@ function openBook(book) {
   $('#selected-description').textContent = book.description || '';
   $('#read-book').hidden = !state.account.readBooks;
   $('#download-book').hidden = !state.account.downloadBooks;
+  $('#locate-book').hidden = !tour || $('#library-tour').hidden;
   status($('#reader-status'));
   renderBookStudy();
   readingReady = request('/api/study/' + encodeURIComponent(book.id)).then(result => {
@@ -652,6 +705,14 @@ function paintHighlights() {
 }
 
 $('#favorite-book').addEventListener('click', () => saveBookStudy({ favorite: !bookReading.favorite }));
+$('#locate-book').addEventListener('click', () => {
+  const book = state.book;
+  if (!book || !tour) return;
+  dialog.close();
+  $('#library-tour').scrollIntoView({ behavior: 'instant' });
+  tour.setVisible(true);
+  tour.locate(book);
+});
 $('#bookmark-book').addEventListener('click', () => {
   if (activePage) saveBookStudy({ bookmark: { page: activePage, remove: bookReading.bookmarks.includes(activePage) } });
 });
@@ -671,6 +732,109 @@ document.addEventListener('selectionchange', () => {
 $('#highlight-book').addEventListener('click', () => {
   if (selection && activePage) saveBookStudy({ note: { page: activePage, quote: selection } });
   else status($('#study-book-status'), 'Select text in the chapter or open Selectable page text in the PDF reader.');
+});
+
+async function loadReviews() {
+  const book = state.book;
+  if (!book) return;
+  try {
+    const result = await request('/api/reviews/' + encodeURIComponent(book.id));
+    if (state.book !== book) return;
+    status($('#review-status'), result.total ? result.average.toFixed(1) + ' of 5 · ' + result.total + ' ratings' : 'No member ratings yet.');
+    if (result.own) {
+      $('#review-form').elements.rating.value = String(result.own.rating);
+      $('#review-form').elements.review.value = result.own.text || '';
+    }
+    $('#book-review-list').replaceChildren(...result.reviews.map(review => {
+      const article = node('article');
+      article.append(node('strong', review.username + ' · ' + review.rating + ' of 5'));
+      if (review.text) article.append(node('p', review.text));
+      return article;
+    }));
+  } catch (error) { if (state.book === book) status($('#review-status'), error.message, true); }
+}
+$('#book-reviews').addEventListener('toggle', () => { if ($('#book-reviews').open) loadReviews(); });
+$('#review-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const book = state.book;
+  const form = event.currentTarget;
+  const button = form.querySelector('button');
+  button.disabled = true;
+  try {
+    await request('/api/reviews/' + encodeURIComponent(book.id), { method: 'PUT', data: { rating: Number(form.elements.rating.value), text: form.elements.review.value } });
+    if (state.book === book) await loadReviews();
+  } catch (error) { if (state.book === book) status($('#review-status'), error.message, true); }
+  finally { button.disabled = false; }
+});
+
+function setTextSource(total, source, signal) {
+  readerText = { total, get: source, signal };
+  const section = $('#book-text-tools');
+  section.open = false;
+  section.hidden = false;
+  status($('#book-find-status'));
+  $('#book-find-results').replaceChildren();
+}
+
+$('#book-find').addEventListener('submit', async event => {
+  event.preventDefault();
+  const source = readerText;
+  const query = event.currentTarget.elements.term.value.trim().toLowerCase();
+  if (!source || !query) return;
+  findController?.abort();
+  const controller = new AbortController();
+  findController = controller;
+  const output = $('#book-find-results');
+  output.replaceChildren();
+  let matches = 0;
+  try {
+    for (let page = 1; page <= source.total && matches < 40; page++) {
+      if (controller.signal.aborted || source.signal.aborted) return;
+      if (page === 1 || page % 11 === 0) status($('#book-find-status'), 'Searching page or chapter ' + page + ' of ' + source.total + '…');
+      const text = (await source.get(page)).replace(/\s+/g, ' ');
+      const at = text.toLowerCase().indexOf(query);
+      if (at < 0) continue;
+      const row = node('article');
+      const link = node('button', 'Open ' + page, 'outline');
+      link.type = 'button';
+      link.addEventListener('click', () => showReaderPage?.(page));
+      row.append(node('p', text.slice(Math.max(0, at - 60), at + query.length + 105)), link);
+      output.append(row);
+      matches++;
+    }
+    status($('#book-find-status'), matches ? matches + (matches === 40 ? '+ matches' : ' matching pages or chapters') : 'No matches in selectable text.');
+  } catch (error) { if (!source.signal.aborted) status($('#book-find-status'), error.message, true); }
+});
+
+$('#book-summarise').addEventListener('click', async event => {
+  const source = readerText;
+  if (!source) return;
+  const output = $('#book-summary-result');
+  const button = event.currentTarget;
+  const engine = window.Summarizer;
+  if (!engine) { status(output, 'This browser does not offer on-device AI summaries.'); return; }
+  button.disabled = true;
+  status(output, 'Preparing the on-device summariser…');
+  let model;
+  try {
+    const options = { type: 'key-points', format: 'plain-text', length: 'medium', expectedInputLanguages: ['en'], outputLanguage: 'en' };
+    if (await engine.availability(options) === 'unavailable') throw new Error('On-device AI summaries are unavailable on this device.');
+    model = await engine.create({ ...options, signal: source.signal, monitor(monitor) {
+      monitor.addEventListener('downloadprogress', event => status(output, 'Preparing the on-device model · ' + Math.round(event.loaded * 100) + '%'));
+    } });
+    const passages = [];
+    let size = 0;
+    for (let page = 1; page <= Math.min(12, source.total) && size < 16_000; page++) {
+      const text = await source.get(page);
+      passages.push(text);
+      size += text.length;
+    }
+    const input = passages.join('\n\n').slice(0, 16_000);
+    if (input.trim().length < 180) throw new Error('The opening pages have too little selectable text for a summary.');
+    status(output, 'Summarising available opening text…');
+    status(output, await model.summarize(input, { signal: source.signal }));
+  } catch (error) { if (!source.signal.aborted) status(output, error.message, true); }
+  finally { model?.destroy(); button.disabled = false; }
 });
 
 async function pagination(total, render) {
@@ -720,6 +884,11 @@ async function readPdf(book, signal) {
   readerCleanup = () => { task.destroy().catch(() => {}); };
   const documentPdf = await task.promise;
   if (signal.aborted) return;
+  const pageContent = async current => {
+    const { items } = await current.getTextContent();
+    return items.map(item => item.str === undefined ? '' : item.str + (item.hasEOL ? '\n' : ' ')).join('').trim();
+  };
+  setTextSource(documentPdf.numPages, async number => pageContent(await documentPdf.getPage(number)), signal);
   const canvas = node('canvas');
   canvas.setAttribute('aria-label', 'PDF page');
   const selectable = node('details', '', 'pdf-selectable');
@@ -730,9 +899,9 @@ async function readPdf(book, signal) {
     if (selectable.open && highlightedPage && oldPage !== highlightedPage) {
       const current = highlightedPage;
       try {
-        const { items } = await current.getTextContent();
+        const text = await pageContent(current);
         if (current !== highlightedPage || signal.aborted) return;
-        selectable.querySelector('p').textContent = items.map(item => item.str === undefined ? '' : item.str + (item.hasEOL ? '\n' : ' ')).join('').trim() || 'This PDF page has no selectable text.';
+        selectable.querySelector('p').textContent = text || 'This PDF page has no selectable text.';
         oldPage = current;
         if (activePage) paintHighlights();
       } catch { selectable.querySelector('p').textContent = 'Selectable text is unavailable for this page.'; }
@@ -787,6 +956,7 @@ async function readEpub(book, signal) {
   const manifest = new Map([...pkg.getElementsByTagNameNS('*', 'item')].map(item => [item.getAttribute('id'), item.getAttribute('href')]));
   const chapters = [...pkg.getElementsByTagNameNS('*', 'itemref')].map(item => manifest.get(item.getAttribute('idref'))).filter(Boolean);
   if (!chapters.length) throw new Error('This EPUB has no readable chapters.');
+  setTextSource(chapters.length, async number => xml(relative(packagePath, chapters[number - 1])).getElementsByTagNameNS('*', 'body')[0]?.textContent || '', signal);
   const page = node('article', '', 'epub-chapter');
   page.setAttribute('aria-label', 'EPUB chapter');
   await pagination(chapters.length, number => {
@@ -848,6 +1018,7 @@ $('#download-book').addEventListener('click', async event => {
   finally { button.disabled = false; }
 });
 dialog.addEventListener('close', () => {
+  findController?.abort();
   readController?.abort();
   readerCleanup?.();
   readerCleanup = undefined;

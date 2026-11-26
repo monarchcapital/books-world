@@ -714,6 +714,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     stored = books;
     shelfIndex = page;
     selected = [];
+    const placed = new Set();
     for (const [id, shelf] of Object.entries(shelves)) {
       disposeGroup(shelf);
       const pageBooks = currentPage(id);
@@ -724,12 +725,15 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
         const columns = Math.min(15, pageBooks.length - row * 15);
         object.position.set((column - (columns - 1) / 2) * .215, [1.77, .99, 2.55][row], .27);
         shelf.add(object);
+        placed.add(book.id);
+        cover.userData.area = id;
         selected.push(cover);
       });
     }
+    const unplaced = books.filter(book => !placed.has(book.id));
     alcoves.forEach((shelf, index) => {
       disposeGroup(shelf);
-      const booksAlongside = books.slice(15 + index * 17, 15 + (index + 1) * 17);
+      const booksAlongside = unplaced.slice(index * 17, (index + 1) * 17);
       booksAlongside.forEach((book, offset) => {
         const { object, cover } = bookObject(book, offset, colours[(offset + index) % colours.length], true);
         object.position.set(-1.50 + (offset % 12) * .25, 1.72 + Math.floor(offset / 12) * .78, .27);
@@ -739,6 +743,22 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     });
     announcePage();
     draw();
+  }
+
+  function locate(book) {
+    const area = Object.keys(shelfAreas).find(id => inArea(book, id));
+    if (!area) return;
+    const index = stored.filter(item => inArea(item, area)).findIndex(item => item.id === book.id);
+    if (index < 0) return;
+    go(area, () => {
+      setBooks(stored, Math.floor(index / 45));
+      const spine = selected.find(item => item.userData.book?.id === book.id && item.userData.area === area);
+      if (!spine) return;
+      aim = spine.getWorldPosition(new THREE.Vector3());
+      camera.lookAt(aim);
+      message.textContent = book.title;
+      draw();
+    });
   }
 
   function target(event) {
@@ -849,7 +869,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
   });
 
   return {
-    go, stage, setBooks, setAvatar, movement, stopMoving, zoom,
+    go, stage, locate, setBooks, setAvatar, movement, stopMoving, zoom,
     page: step => setBooks(stored, Math.max(0, Math.min(shelfIndex + step, pageCount(stop.id) - 1))),
     setVisible(visible) {
       paused = !visible;
