@@ -265,15 +265,15 @@ async function retry(run) {
   }
 }
 
-async function uploadBook(file, progress, replacement = false) {
+async function uploadBook(file, progress, replacement = false, request = connection.request, acquisition = {}) {
   if (file.size > 275 * 1024 * 1024) throw new Error('This file exceeds the upload size limit.');
   const format = file.name.split('.').pop().toLowerCase();
   if (!['pdf', 'epub'].includes(format)) throw new Error('Choose a PDF or EPUB.');
   progress(0, 'Inspecting ' + file.name);
   const digest = await hash(await file.arrayBuffer());
   const details = await inspect(file, format);
-  const result = await retry(() => connection.request('/api/admin/imports', {
-    method: 'POST', data: { ...details, id: digest, sha256: digest, size: file.size, format, replacement }
+  const result = await retry(() => request('/api/admin/imports', {
+    method: 'POST', data: { ...details, ...acquisition, id: digest, sha256: digest, size: file.size, format, replacement }
   }));
   if (result.status !== 'uploading') return { id: result.duplicateOf || result.id, added: false };
   const key = '/api/admin/imports/' + digest;
@@ -283,18 +283,25 @@ async function uploadBook(file, progress, replacement = false) {
         if (result.parts.includes(part)) continue;
         const body = file.slice(offset, offset + result.chunkSize);
         const checksum = await hash(await body.arrayBuffer());
-        await retry(() => connection.request(key + '/parts/' + part, {
+        await retry(() => request(key + '/parts/' + part, {
           method: 'PUT', body, headers: { 'Content-Type': 'application/octet-stream', 'X-Part-SHA256': checksum }
         }));
         progress(Math.min(1, (offset + body.size) / file.size), 'Uploading ' + file.name + ' · Part ' + part);
       }
     }
-    await retry(() => connection.request(key + '/complete', { method: 'POST', data: {} }));
+    await retry(() => request(key + '/complete', { method: 'POST', data: {} }));
     return { id: digest, added: true };
   } catch (error) {
-    await connection.request(key + '/failure', { method: 'POST', data: { error: error.message } }).catch(() => {});
+    await request(key + '/failure', { method: 'POST', data: { error: error.message } }).catch(() => {});
     throw error;
   }
+}
+
+export function uploadRequestedEdition(request, file, progress, item, source, rights) {
+  return uploadBook(file, progress, false, request, {
+    title: item.title, ...(item.author ? { author: item.author } : {}), ...(item.isbn ? { isbn: item.isbn } : {}),
+    evidence: ['Requested edition: ' + (item.edition || 'Edition unspecified'), source, rights],
+  });
 }
 
 async function uploadFiles(files) {

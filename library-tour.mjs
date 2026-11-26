@@ -6,7 +6,9 @@ const stops = [
   { id: 'east', name: 'East Gallery', position: [2.25, 1.68, -.3], look: [4.85, 2.02, -.3] },
   { id: 'archives', name: 'The Archives', position: [-2.25, 1.68, -5], look: [-4.85, 2.02, -5] },
   { id: 'desk', name: 'Reading Desk', position: [0, 1.65, -6.1], look: [0, 1.05, -8.7] },
-  { id: 'portrait', name: 'Portrait Gallery', position: [3.65, 2.22, -10.2], look: [3.6, 2.82, -13.28] }
+  { id: 'portrait', name: 'Portrait Gallery', position: [3.65, 2.22, -10.2], look: [3.6, 2.82, -13.28] },
+  { id: 'court', name: 'Sunstone Court', position: [0, 1.65, 7.4], look: [0, 1.9, -4.3] },
+  { id: 'observatory', name: 'The Hidden Observatory', position: [0, 1.65, 6.5], look: [0, 2.7, -4.7] }
 ];
 
 const shelfAreas = {
@@ -580,7 +582,65 @@ function disposeGroup(group) {
   group.clear();
 }
 
-export function createLibraryTour({ canvas, message, onStop, onPick, compact, getCover, onPage, hasPortrait, getPortrait, onAim, onJourney }) {
+function academyPlace(room, observe) {
+  const materials = {
+    flagstone: new THREE.MeshStandardMaterial({ color: observe ? 0x465965 : 0x788977, roughness: .78 }),
+    paving: new THREE.MeshStandardMaterial({ color: observe ? 0x8eaaac : 0x92a28c, roughness: .8 }),
+    wall: new THREE.MeshStandardMaterial({ color: observe ? 0x435164 : 0xc48f6e, roughness: .86 }),
+    hedge: new THREE.MeshStandardMaterial({ color: 0x5a774a, roughness: 1 }),
+    glyph: new THREE.MeshBasicMaterial({ color: observe ? 0x9be1fc : 0xffd77b }),
+  };
+  panel(room, materials.flagstone, [11.4, .12, 29], [0, -.12, 0]);
+  for (let z = -12.5; z < 13; z += 1.22) {
+    for (const x of [-3.1, -1.05, 1.05, 3.1]) panel(room, materials.paving, [2.02, .06, 1.18], [x, -.061, z]);
+  }
+  for (const x of [-5, 5]) {
+    panel(room, materials.wall, [.44, 2, 26], [x, 1, .3]);
+    for (const z of [-10, -6, -2, 2, 6, 10]) {
+      panel(room, materials.wall, [.55, 4.2, .58], [x, 2.1, z]);
+      panel(room, brass, [.67, .075, .69], [x, 4.25, z]);
+      if (!observe) {
+        panel(room, timber, [1.08, .55, 1.3], [x * .87, .25, z + .9]);
+        const top = new THREE.Mesh(new THREE.IcosahedronGeometry(.63, 1), materials.hedge);
+        top.position.set(x * .87, .87, z + .9);
+        room.add(top);
+      }
+    }
+  }
+  arch(room, -8, 3.8, 5.25, materials.wall);
+  for (const [x, color] of [[-2.2, 0xfeb965], [2.2, 0x9dd9fb]]) {
+    panel(room, brass, [.68, .16, .65], [x, .08, -3.6]);
+    const lantern = new THREE.Mesh(new THREE.OctahedronGeometry(.24), new THREE.MeshBasicMaterial({ color }));
+    lantern.position.set(x, 1.14, -3.6);
+    room.add(lantern);
+    panel(room, materials.wall, [.24, .96, .24], [x, .5, -3.6]);
+    const glow = new THREE.PointLight(color, 8, 6);
+    glow.position.copy(lantern.position);
+    room.add(glow);
+  }
+  const lens = new THREE.Mesh(new THREE.IcosahedronGeometry(.38, 1), materials.glyph);
+  lens.position.set(0, 2.15, -5.25);
+  room.add(lens);
+  for (let index = 0; index < 3; index++) {
+    const orbit = new THREE.Mesh(new THREE.TorusGeometry(.72 + .22 * index, .017, 8, 45), brass);
+    orbit.rotation.set(index * .9 + .5, index * 1.9, .25);
+    orbit.position.copy(lens.position);
+    room.add(orbit);
+  }
+  const dais = panel(room, materials.wall, [1.65, .16, 1.52], [0, .08, -5.25]);
+  room.add(new THREE.HemisphereLight(observe ? 0xa5cfff : 0xffe3b5, 0x756c55, observe ? 2.25 : 2.8));
+  if (observe) {
+    const star = new THREE.MeshBasicMaterial({ color: 0xcdeaff });
+    for (let i = 0; i < 56; i++) {
+      const point = new THREE.Mesh(new THREE.SphereGeometry(.013 + (i % 4) * .008, 6, 4), star);
+      point.position.set(Math.sin(i * 12.39) * 13, 5 + ((i * 17) % 12) * .6, -10 - (i % 9) * 1.8);
+      room.add(point);
+    }
+  }
+  return { lens, dais };
+}
+
+export function createLibraryTour({ canvas, message, onStop, onPick, compact, getCover, onPage, hasPortrait, getPortrait, onAim, onJourney, onSigil }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.65));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -591,11 +651,31 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
   scene.fog = new THREE.FogExp2(0x2e211a, .019);
   const camera = new THREE.PerspectiveCamera(61, 1, .065, 80);
   const targets = [];
-  const { spaces: shelves, alcoves, flames, sun, sky, stainedLight } = space(scene, targets, draw);
+  const library = new THREE.Group();
+  const court = new THREE.Group();
+  const observatory = new THREE.Group();
+  scene.add(library, court, observatory);
+  court.visible = observatory.visible = false;
+  const { spaces: shelves, alcoves, flames, sun, sky, stainedLight } = space(library, targets, draw);
+  const courtScene = academyPlace(court, false);
+  const starsScene = academyPlace(observatory, true);
+  const campusTargets = [courtScene.lens, courtScene.dais];
+  const sigilItems = [[library, 'ink', [-4.53, 3.16, 4.4]], [library, 'root', [-4.53, 3.16, -5]]];
+  for (const [group, rune, position] of sigilItems) {
+    const mark = new THREE.Mesh(new THREE.OctahedronGeometry(.20),
+      new THREE.MeshBasicMaterial({ color: rune === 'ink' ? 0x9b92de : 0xcdaa66 }));
+    mark.position.set(...position);
+    mark.userData.sigil = rune;
+    group.add(mark);
+    targets.push(mark);
+  }
+  campusTargets.forEach(marker => { marker.userData.sigil = 'star'; });
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let stop = stops[0];
+  let unlocked = false;
+  const wing = id => ['court', 'observatory'].includes(id) ? id : 'library';
   let aim = vector(stop.look);
   let animation = null;
   let selected = [];
@@ -696,6 +776,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
 
   function animateVisitors(time, delta) {
     for (const { avatar, label, pose, offset, waveFrom } of visitors.values()) {
+      avatar.root.visible = label.visible = wing(pose.area) === wing(stop.id);
       const blend = reduced.matches ? 1 : 1 - Math.exp(-5.2 * delta);
       const besideWalker = walker && Math.hypot(pose.x - walker.root.position.x, pose.z - walker.root.position.z) < .38;
       const targetX = besideWalker ? THREE.MathUtils.clamp(pose.x + offset, -4.26, 4.26) : pose.x;
@@ -722,7 +803,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     const next = before.clone().addScaledVector(direction, delta * 2.35);
     next.x = THREE.MathUtils.clamp(next.x, -4.15, 4.15);
     next.z = THREE.MathUtils.clamp(next.z, -11.9, 12.35);
-    if (Math.abs(next.x) < 1.65 && next.z < -7.78 && next.z > -9.18) next.z = before.z;
+    if (wing(stop.id) === 'library' && Math.abs(next.x) < 1.65 && next.z < -7.78 && next.z > -9.18) next.z = before.z;
     camera.position.copy(next);
     aim.add(next.clone().sub(before));
     camera.lookAt(aim);
@@ -753,7 +834,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       image.needsUpdate = true;
       const framed = new THREE.Group();
       framed.position.set(3.58, 2.88, -13.32);
-      scene.add(framed);
+      library.add(framed);
       panel(framed, timber, [2.30, 2.47, .13], [0, 0, .01]);
       panel(framed, brass, [2.21, 2.34, .08], [0, 0, .085]);
       panel(framed, trim, [2.10, 2.22, .075], [0, 0, .132]);
@@ -765,7 +846,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       targets.push(painting);
       const glow = new THREE.PointLight(0xffd1a2, 7, 5, 1.55);
       glow.position.set(3.56, 4.20, -12.66);
-      scene.add(glow);
+      library.add(glow);
       hasPortrait?.(true);
       draw();
     }).catch(() => { hasPortrait?.(false); });
@@ -811,6 +892,8 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     const social = !document.hidden && (visitors.size || time - localWave < 1_480);
     if (((idleLights || social) && time - lastPaint >= 32) || active || moving.size || !lastPaint) {
       if (idleLights) {
+        courtScene.lens.rotation.y = time * .00043;
+        starsScene.lens.rotation.y = time * .00055;
         for (const flame of flames) {
           flame.item.position.y = flame.y + Math.sin(time * .00125 + flame.phase) * .094;
           flame.flame.scale.y = 1.68 + Math.sin(time * .009 + flame.phase) * .24;
@@ -836,7 +919,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
 
   function go(id, complete, travel) {
     const destination = stops.find(place => place.id === id);
-    if (!destination) return;
+    if (!destination || (id === 'observatory' && !unlocked)) return;
     stopMoving();
     if (!complete) onJourney?.(undefined);
     if (lifted && !complete) {
@@ -850,7 +933,14 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       behind = undefined;
     }
     const changedRoom = stop.id !== destination.id;
+    const changedWing = wing(stop.id) !== wing(id);
     stop = destination;
+    library.visible = wing(id) === 'library';
+    court.visible = id === 'court';
+    observatory.visible = id === 'observatory';
+    const atmosphere = observatory.visible ? 0x121d39 : court.visible ? 0x8b9aac : 0x261b15;
+    scene.background.setHex(atmosphere);
+    scene.fog.color.setHex(atmosphere);
     onStop(stop.id);
     if (changedRoom && shelfIndex !== 0) setBooks(stored);
     else announcePage();
@@ -858,6 +948,15 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     const next = vector(stop.position);
     const oldAim = aim.clone();
     const nextAim = vector(stop.look);
+    if (changedWing) {
+      camera.position.copy(next);
+      aim.copy(nextAim);
+      camera.lookAt(aim);
+      follow();
+      complete?.();
+      draw();
+      return;
+    }
     const way = new THREE.Vector3(0, origin.y, (origin.z + next.z) / 2);
     const curve = new THREE.QuadraticBezierCurve3(origin, way, next);
     transition(travel ?? (id === 'desk' ? 970 : 1160), fraction => {
@@ -1023,9 +1122,9 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     const bounds = canvas.getBoundingClientRect();
     pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
-    const view = raycaster.intersectObjects([...selected, ...targets], false);
+    const view = raycaster.intersectObjects(library.visible ? [...selected, ...targets] : court.visible ? campusTargets : [], false);
     const hit = view.find(candidate => candidate.object.visible && candidate.object.parent?.visible)?.object;
-    if (event.pointerType !== 'touch' || hit?.userData.book) return hit;
+    if (event.pointerType !== 'touch' || !library.visible || hit?.userData.book || hit?.userData.sigil) return hit;
     let closest = hit;
     let distance = 18;
     for (const spine of selected) {
@@ -1089,7 +1188,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       }
     } else if (!animation) {
       const object = target(event);
-      const title = object?.userData.book?.title || (object?.userData.stop === 'portrait' ? 'View the framed portrait' : '');
+      const title = object?.userData.book?.title || (object?.userData.sigil ? 'Inspect academy sigil' : object?.userData.stop === 'portrait' ? 'View the framed portrait' : '');
       canvas.classList.toggle('can-pick', Boolean(object));
       message.textContent = title || '';
     }
@@ -1101,6 +1200,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     if (press && !press.moved && !animation) {
       const object = target(event);
       if (object?.userData.book) stage(object.userData.book, object.userData.model, event.pointerType === 'touch');
+      else if (object?.userData.sigil) onSigil?.(object.userData.sigil);
       else if (object?.userData.stop) go(object.userData.stop);
     }
     press = null;
@@ -1128,6 +1228,10 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
 
   return {
     go, stage, locate, setBooks, setAvatar, movement, stopMoving, zoom, presencePose, setVisitors,
+    setObservatoryAccess(allowed) {
+      unlocked = allowed;
+      if (!unlocked && stop.id === 'observatory') go('hall');
+    },
     wave() {
       localWave = performance.now();
       if (!paused && !frame) frame = requestAnimationFrame(animate);

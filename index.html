@@ -9,8 +9,8 @@
   <meta name="robots" content="noindex, nofollow">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://rias-library.nutmegarbor1.chatgpt.site; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>Ria’s Library · Formyria</title>
-  <link rel="stylesheet" href="./formyria.css?v=10">
-  <script src="./formyria.mjs?v=10" type="module"></script>
+  <link rel="stylesheet" href="./formyria.css?v=12">
+  <script src="./formyria.mjs?v=12" type="module"></script>
 </head>
 <body data-library-api="https://rias-library.nutmegarbor1.chatgpt.site">
   <header class="topbar">
@@ -77,6 +77,7 @@
             <p class="kicker"><span></span> Ria’s Library</p>
             <h1 id="tour-room" tabindex="-1">The Grand Hall</h1>
             <p id="tour-instructions">Use W A S D or the arrow controls to walk. Select a bookcase to approach it.</p>
+            <button class="outline tour-academy-action" id="tour-academy-action" type="button" hidden>Academy activity</button>
           </div>
           <div class="wand-target" id="wand-target" aria-hidden="true"><span></span></div>
           <button class="wand-book outline" id="wand-book" type="button" hidden></button>
@@ -107,6 +108,8 @@
             <button class="outline" type="button" data-stop="west">West Stacks</button>
             <button class="outline" type="button" data-stop="east">East Gallery</button>
             <button class="outline" type="button" data-stop="portrait" hidden>Portrait Gallery</button>
+            <button class="outline" type="button" data-stop="court">Sunstone Court</button>
+            <button class="outline" type="button" data-stop="observatory" hidden>Observatory</button>
             <button class="outline" type="button" data-stop="hall" aria-current="location">Grand Hall</button>
           </nav>
           <div class="tour-actions">
@@ -117,6 +120,7 @@
             <button class="outline" type="button" id="tour-light" aria-pressed="false">Night lighting</button>
             <button class="outline" type="button" data-sound aria-pressed="false">Ambience</button>
             <button class="outline" type="button" data-shared-tour>Shared tour</button>
+            <button class="outline" type="button" data-academy>Academy</button>
             <button class="outline" type="button" data-wave hidden>Wave</button>
             <div class="tour-page" id="tour-page" hidden>
               <button class="outline" type="button" id="tour-prev" aria-label="Previous shelf">‹</button>
@@ -139,6 +143,7 @@
           <div class="hall-actions">
             <a class="brass" href="#shelves">Explore the shelves <span aria-hidden="true">↓</span></a>
             <button class="outline" type="button" data-study>Private study</button>
+            <button class="outline" type="button" data-academy>Academy</button>
             <button class="outline" type="button" id="office-button" hidden>Ria’s office <span id="notification-count" class="counter" hidden></span></button>
             <button class="outline" type="button" data-shared-tour>Shared tour settings</button>
           </div>
@@ -147,6 +152,10 @@
       <section class="layout shelves" id="shelves" aria-labelledby="shelf-title">
         <p class="kicker"><span></span> The catalogue</p>
         <h2 class="section-title" id="shelf-title">Browse the shelves</h2>
+        <div class="office-actions shelf-actions">
+          <button class="outline" type="button" data-book-requests data-new-request>Request a book</button>
+          <a class="outline" href="#new-books">New books</a>
+        </div>
         <div class="catalogue-controls">
           <label>Search the catalogue<input id="book-search" type="search" placeholder="Title, author, genre or tag"></label>
           <label>Genre<select id="genre-filter"><option value="">All genres</option></select></label>
@@ -154,6 +163,15 @@
         </div>
         <p id="catalogue-status" class="form-status" role="status"></p>
         <div id="shelf-display" class="bookcase"></div>
+      </section>
+      <section class="layout shelves" id="new-books" aria-labelledby="new-books-title" hidden>
+        <h2 class="section-title" id="new-books-title">New on the shelves</h2>
+        <div class="office-actions shelf-actions">
+          <label>Show <select id="new-books-filter"><option value="">All recently added</option><option value="Public-domain classics">Public-domain classics</option></select></label>
+          <p id="new-books-count" class="form-status" role="status"></p>
+        </div>
+        <div id="new-book-list" class="bookcase"></div>
+        <button class="outline" type="button" id="more-new-books" hidden>Show more books</button>
       </section>
       <section class="layout shelves" id="study" aria-labelledby="study-title" hidden>
         <p class="kicker"><span></span> Your reading</p>
@@ -175,6 +193,10 @@
           </div>
           <p id="office-status" class="form-status" role="status"></p>
           <div id="member-list" class="member-list"></div>
+          <div class="office-toolbar">
+            <h3>Book requests</h3>
+            <button class="outline" type="button" data-book-requests>Manage requests</button>
+          </div>
           <section id="book-management" class="book-management" aria-labelledby="management-title" hidden>
             <h3 id="management-title">Collection management</h3>
             <p id="management-stats" class="form-status"></p>
@@ -309,6 +331,8 @@
       <button class="outline" type="button" data-stop="archives">Archives</button>
       <button class="outline" type="button" data-stop="desk">Reading Desk</button>
       <button class="outline" type="button" data-stop="portrait" hidden>Portrait Gallery</button>
+      <button class="outline" type="button" data-stop="court">Sunstone Court</button>
+      <button class="outline" type="button" data-stop="observatory" hidden>Observatory</button>
     </div>
   </dialog>
   <dialog class="library-sheet" id="tour-menu-dialog" aria-labelledby="tour-menu-title">
@@ -318,6 +342,9 @@
     </div>
     <div class="tour-drawer-list">
       <a class="outline" href="#shelves" data-drawer-close>Find a book</a>
+      <a class="outline" href="#new-books" data-drawer-close>New books</a>
+      <button class="outline" type="button" data-book-requests>Book requests</button>
+      <button class="outline" type="button" data-academy>Academy</button>
       <button class="outline" type="button" data-study data-drawer-close>Private study</button>
       <button class="outline" type="button" id="compact-office" data-drawer-close hidden>Ria’s Office</button>
       <button class="outline" type="button" id="compact-light" aria-pressed="false" data-tour-only>Night lighting</button>
@@ -326,6 +353,40 @@
       <button class="outline" type="button" id="avatar-girl" data-avatar-choice="girl" hidden>Use girl avatar</button>
       <button class="outline" type="button" id="avatar-boy" data-avatar-choice="boy" hidden>Use boy avatar</button>
     </div>
+  </dialog>
+  <dialog class="library-sheet request-dialog" id="academy-dialog" aria-labelledby="academy-title">
+    <div class="book-dialog-header">
+      <h2 id="academy-title" class="section-title">Formyria Academy</h2>
+      <form method="dialog"><button class="outline" aria-label="Close academy">Close</button></form>
+    </div>
+    <nav class="office-actions academy-nav" aria-label="Academy activities">
+      <button class="outline" type="button" data-academy-tab="quest">Hidden room</button>
+      <button class="outline" type="button" data-academy-tab="lesson">Magic lesson</button>
+      <button class="outline" type="button" data-academy-tab="coop">Co-op</button>
+      <button class="outline" type="button" data-academy-tab="quiz">Book quizzes</button>
+    </nav>
+    <div id="academy-activity"></div>
+    <p id="academy-feedback" class="form-status" role="status"></p>
+  </dialog>
+  <dialog class="library-sheet request-dialog" id="book-requests-dialog" aria-labelledby="book-requests-title">
+    <div class="book-dialog-header">
+      <h2 class="section-title" id="book-requests-title">Book requests</h2>
+      <form method="dialog"><button class="outline" aria-label="Close book requests">Close</button></form>
+    </div>
+    <details id="new-book-request">
+      <summary>Request a book</summary>
+      <form id="book-request-form" class="request-fields">
+        <label>Title<input name="title" required maxlength="250" autocomplete="off"></label>
+        <label>Author<input name="author" maxlength="250" autocomplete="off"></label>
+        <label>Edition, year or translator<input name="edition" maxlength="180" autocomplete="off"></label>
+        <label>ISBN, if known<input name="isbn" maxlength="26" autocomplete="off"></label>
+        <label>Format<select name="format"><option value="pdf">PDF</option><option value="epub">EPUB</option><option value="either">PDF or EPUB</option></select></label>
+        <label>Source link, if you have one<input name="source" type="url" maxlength="600" placeholder="https://"></label>
+        <button class="brass" type="submit">Send request</button>
+      </form>
+    </details>
+    <p id="book-request-status" class="form-status" role="status"></p>
+    <div id="book-request-list" class="request-list"></div>
   </dialog>
   <dialog class="library-sheet" id="shared-tour-dialog" aria-labelledby="shared-tour-title">
     <div class="book-dialog-header">

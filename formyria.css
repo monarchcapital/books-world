@@ -297,3 +297,38 @@ dialog .hall-actions { margin-top: 16px }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important }
 }
+.request-dialog { width: min(720px, calc(100% - 2rem)); }
+.request-dialog details { margin: .8rem 0; }
+.request-dialog summary { cursor: pointer; color: #e5c987; padding: .35rem 0; }
+.request-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; margin: .8rem 0; }
+.request-fields label, .request-list article > details > label { display: grid; gap: .3rem; min-width: 0; }
+.request-fields input, .request-fields select { width: 100%; min-width: 0; }
+.request-fields button { grid-column: 1 / -1; justify-self: start; }
+.request-list { display: grid; gap: .65rem; }
+.request-list article { min-width: 0; padding: .8rem; border: 1px solid rgba(218, 185, 122, .3); overflow-wrap: anywhere; }
+.request-list article h3, .request-list article p { margin: 0 0 .35rem; }
+.request-list article .office-actions { margin-top: .55rem; }
+.request-links { display: flex; flex-wrap: wrap; gap: .45rem .8rem; margin: .55rem 0; }
+.request-dialog a { color: #e5c987; text-decoration: underline; }
+.tour-academy-action { pointer-events: auto; margin: .65rem 0 0; position: relative; z-index: 2; }
+.academy-nav { margin-bottom: 1rem; }
+.academy-nav [aria-pressed="true"] { background: #3e3324; border-color: var(--brass); color: #f4d99e; }
+#academy-activity { display: grid; gap: .65rem; }
+#academy-activity h3 { font: normal 1.6rem var(--serif); }
+#academy-activity p { max-width: 62ch; }
+.academy-options { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
+.academy-sequence { padding: .55rem .75rem; border: 1px solid var(--line); color: #f1d599; font-weight: 600; }
+.academy-answers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.academy-answers button { text-align: start; }
+.academy-answers [data-correct="true"] { border-color: #aaca84; }
+.academy-answers [data-wrong="true"] { border-color: #ed9c8c; }
+.shelf-actions { margin-bottom: .75rem; }
+.shelf-actions a { display: inline-flex; align-items: center; text-decoration: none; }
+#more-new-books { margin-top: .85rem; }
+@media (max-width: 600px) {
+  .request-dialog { width: 100%; }
+  .request-fields { grid-template-columns: minmax(0, 1fr); }
+  .tour-academy-action { min-height: 36px; padding: .4rem .65rem; font-size: .8rem; }
+  .academy-nav { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+  .academy-answers { grid-template-columns: 1fr; }
+}

@@ -24,7 +24,7 @@ let presenceTask = Promise.resolve();
 let pendingWave = false;
 let wavedAt = -Infinity;
 let memberListText = '';
-const tourNames = { hall: 'The Grand Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery' };
+const tourNames = { hall: 'The Grand Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery', court: 'Sunstone Court', observatory: 'The Hidden Observatory' };
 let currentMembers = [];
 let lookingUpMember = '';
 let readingShared = '';
@@ -32,6 +32,13 @@ let readingRequests = [];
 const dismissedRequests = new Map();
 let activeSheet;
 let sheetTrigger;
+let showBookRequests;
+let academy;
+let academyLoading;
+let currentTourStop = 'hall';
+let observatoryAccess = false;
+const newBookPageSize = 24;
+let newBookCount = newBookPageSize;
 
 function isDialogOpen(dialog) { return Boolean(dialog?.hasAttribute('open')); }
 
@@ -93,6 +100,10 @@ document.addEventListener('keydown', event => {
 });
 
 function showStop(place) {
+  currentTourStop = place;
+  const activity = $('#tour-academy-action');
+  activity.hidden = !['west', 'archives', 'court', 'observatory'].includes(place);
+  activity.textContent = place === 'court' ? 'Court activities' : place === 'observatory' ? 'Book quizzes' : 'Inspect the sigil';
   $('#tour-room').textContent = tourNames[place];
   $('#tour-instructions').textContent = {
     hall: 'Walk with W A S D, the arrow keys, or the on-screen arrows. Select a bookcase to approach it.',
@@ -100,7 +111,9 @@ function showStop(place) {
     east: 'Science, technology, business and finance. Select a book by its spine.',
     archives: 'Reference books and works awaiting classification. Select a book by its spine.',
     desk: 'Pick a book from a stack or the catalogue to bring it to the desk.',
-    portrait: 'The framed portrait hangs at the far end of the hall.'
+    portrait: 'The framed portrait hangs at the far end of the hall.',
+    court: 'Explore the open-air court, light a lantern with a friend, or practise lanternlight.',
+    observatory: 'You solved the Astronomer’s Lock. Try a book quiz under the stars.',
   }[place];
   for (const control of document.querySelectorAll('[data-stop]')) {
     if (control.dataset.stop === place) control.setAttribute('aria-current', 'location');
@@ -123,10 +136,11 @@ async function loadTour() {
     return;
   }
   if (!tourLoading) {
-    tourLoading = import('./library-tour.mjs?v=10').then(module => {
+    tourLoading = import('./library-tour.mjs?v=12').then(module => {
       tour = module.createLibraryTour({
         canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, compact,
         onPick: book => openBook(book, true),
+        onSigil: rune => openAcademy(null, 'quest', rune),
         onJourney(book) {
           const notice = $('#book-journey');
           notice.hidden = !book;
@@ -160,6 +174,7 @@ async function loadTour() {
           if (isDialogOpen($('#shelf-dialog'))) setShelfChoices();
         }
       });
+      tour.setObservatoryAccess(observatoryAccess);
       tour.setAvatar(state.account?.avatar || (state.account?.role === 'admin' ? 'librarian' : 'member'));
       tour.setBooks(state.books);
     }).catch(error => {
@@ -176,6 +191,55 @@ document.querySelectorAll('[data-stop]').forEach(control => {
     closeDialog(control.closest('dialog'));
     tour?.go(control.dataset.stop);
   });
+});
+
+function prepareAcademy() {
+  if (!academyLoading) {
+    academyLoading = import('./academy.mjs?v=12').then(({ academyActivities }) => {
+      const dialog = $('#academy-dialog');
+      academy = academyActivities({
+        request, status, area: () => tour && !$('#library-tour').hidden && currentTourStop,
+        username: () => state.account?.username,
+        storage: (key, value) => storage('localStorage', key, value),
+        active: () => isDialogOpen(dialog),
+        show: () => openDialog(dialog),
+        hide: () => closeDialog(dialog),
+        go(place) {
+          if (!tour || $('#library-tour').hidden) return false;
+          $('#library-tour').scrollIntoView({ block: 'start' });
+          tour.go(place);
+          return true;
+        },
+        unlock(allowed) {
+          observatoryAccess = allowed;
+          tour?.setObservatoryAccess(allowed);
+          document.querySelectorAll('[data-stop="observatory"]').forEach(control => { control.hidden = !allowed; });
+        },
+      });
+      return academy;
+    }).catch(error => { academyLoading = null; throw error; });
+  }
+  return academyLoading;
+}
+
+async function openAcademy(control, tab, rune) {
+  if (control) closeDialog(control.closest('dialog'));
+  const token = state.token;
+  try {
+    const activities = await prepareAcademy();
+    if (!state.account || state.token !== token) return;
+    await activities.open(tab);
+    if (rune) await activities.collect(rune);
+  } catch (error) {
+    openDialog($('#academy-dialog'));
+    status($('#academy-feedback'), error.message, true);
+  }
+}
+document.querySelectorAll('[data-academy]').forEach(control =>
+  control.addEventListener('click', () => openAcademy(control)));
+$('#tour-academy-action').addEventListener('click', event => {
+  const tab = currentTourStop === 'court' ? 'lesson' : currentTourStop === 'observatory' ? 'quiz' : 'quest';
+  openAcademy(event.currentTarget, tab);
 });
 
 function shareLabels(members = [], message) {
@@ -593,12 +657,19 @@ function closeLibrary(message = '') {
   closeDialog($('#shelf-dialog'));
   closeDialog($('#tour-map-dialog'));
   closeDialog($('#tour-menu-dialog'));
+  closeDialog($('#book-requests-dialog'));
+  closeDialog($('#academy-dialog'));
+  academy?.reset();
   setSession(null, null);
   state.books = [];
   state.categories.clear();
   tour?.setBooks([]);
   showTour(false);
   $('#shelf-display').replaceChildren();
+  $('#new-books').hidden = true;
+  $('#new-books-filter').value = '';
+  $('#new-book-list').replaceChildren();
+  newBookCount = newBookPageSize;
   $('#member-list').replaceChildren();
   $('#office').hidden = true;
   $('#study').hidden = true;
@@ -634,7 +705,8 @@ async function enter(animate) {
   $('#office-button').hidden = state.account.role !== 'admin';
   $('#tour-office').hidden = state.account.role !== 'admin';
   $('#compact-office').hidden = state.account.role !== 'admin';
-  await Promise.all([loadCatalogue(), loadTour(), state.account.role === 'admin' && loadNotifications()]);
+  await Promise.all([loadCatalogue(), loadTour(), state.account.role === 'admin' && loadNotifications(),
+    prepareAcademy().then(activities => state.token === activeToken && activities.sync()).catch(() => {})]);
 }
 
 async function submit(form, task) {
@@ -739,6 +811,7 @@ async function loadCatalogue() {
     select.replaceChildren(new Option('All genres', ''));
     for (const [id, name] of [...state.categories].sort((a, b) => a[1].localeCompare(b[1]))) select.add(new Option(name, id));
     renderShelves();
+    renderNewBooks();
   } catch (error) {
     if (error.status === 401 || error.status === 403) closeLibrary(error.message);
     else status(catalogueStatus, error.message, true);
@@ -755,17 +828,58 @@ function renderShelves() {
     return words.every(word => text.includes(word));
   });
   const results = document.createDocumentFragment();
-  for (const book of books) {
-    const button = node('button', book.title, 'spine');
-    button.type = 'button';
-    button.append(node('small', [book.author, book.format.toUpperCase()].filter(Boolean).join(' · ')));
-    button.addEventListener('click', () => goToReadingDesk(book));
-    results.append(button);
-  }
+  for (const book of books) results.append(bookButton(book));
   $('#shelf-display').replaceChildren(results);
   const message = books.length ? `${books.length} ${books.length === 1 ? 'book' : 'books'}` : state.books.length ? 'No books match those filters.' : 'No books have been added to the private shelves yet.';
   status(catalogueStatus, message);
 }
+
+function bookButton(book) {
+  const button = node('button', book.title, 'spine');
+  button.type = 'button';
+  button.append(node('small', [book.author, book.format.toUpperCase()].filter(Boolean).join(' · ')));
+  button.addEventListener('click', () => goToReadingDesk(book));
+  return button;
+}
+
+function renderNewBooks() {
+  const recent = state.books.filter(book => book.addedAt).sort((a, b) =>
+    b.addedAt.localeCompare(a.addedAt) || a.title.localeCompare(b.title));
+  const tag = $('#new-books-filter').value;
+  const choices = tag ? recent.filter(book => book.tags?.includes(tag)) : recent;
+  $('#new-books').hidden = !recent.length;
+  $('#new-book-list').replaceChildren(...choices.slice(0, newBookCount).map(bookButton));
+  $('#more-new-books').hidden = choices.length <= newBookCount;
+  status($('#new-books-count'), choices.length ? 'Showing ' + Math.min(newBookCount, choices.length) + ' of ' + choices.length : 'No editions in this collection yet.');
+}
+$('#new-books-filter').addEventListener('change', () => { newBookCount = newBookPageSize; renderNewBooks(); });
+$('#more-new-books').addEventListener('click', () => {
+  newBookCount += newBookPageSize;
+  renderNewBooks();
+});
+
+async function openBookRequests(control) {
+  const dialog = $('#book-requests-dialog');
+  const menu = $('#tour-menu-dialog');
+  closeDialog(menu);
+  openDialog(dialog);
+  try {
+    if (!showBookRequests) {
+      const { bookRequestDesk } = await import('./book-requests.mjs?v=11');
+      showBookRequests ??= bookRequestDesk({
+        request, status, loadCatalogue, account: () => state.account, books: () => state.books,
+        openBook: book => { closeDialog(dialog); goToReadingDesk(book); },
+      });
+    }
+    if (state.account?.role === 'admin' && !state.books.length) await loadCatalogue();
+    if (state.account && isDialogOpen(dialog)) {
+      showBookRequests(control.hasAttribute('data-new-request'), $('#book-search').value.trim());
+    }
+  } catch (error) { status($('#book-request-status'), error.message, true); }
+}
+document.querySelectorAll('[data-book-requests]').forEach(control =>
+  control.addEventListener('click', () => openBookRequests(control)));
+
 $('#book-search').addEventListener('input', renderShelves);
 $('#genre-filter').addEventListener('change', renderShelves);
 $('#format-filter').addEventListener('change', renderShelves);
@@ -846,7 +960,7 @@ function openOffice() {
   $('#office-title').focus({ preventScroll: true });
   $('#office').scrollIntoView({ behavior: motion.matches ? 'instant' : 'smooth' });
   Promise.all([loadMembers(), loadNotifications()]);
-  import('./admin-office.mjs').then(module => module.openCollectionOffice({ request, loadCatalogue })).catch(error => status(officeStatus, error.message, true));
+  import('./admin-office.mjs?v=11').then(module => module.openCollectionOffice({ request, loadCatalogue })).catch(error => status(officeStatus, error.message, true));
 }
 $('#office-button').addEventListener('click', openOffice);
 $('#tour-office').addEventListener('click', openOffice);
