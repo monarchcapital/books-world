@@ -44,6 +44,7 @@ h1, h2, h3, p { margin: 0 }
 .entrance-description { color: #f1dfca; max-width: 270px; font-size: 15px }
 .gate { position: relative; background: radial-gradient(ellipse at 50% 6%,#392d35f7,#231b21fa 38%,#1b1519fb 100%); border: 1px solid #b9986c9c; border-radius: 26px 26px 1px 1px; padding: clamp(20px, 3.2vw, 35px); box-shadow: 0 20px 85px #0f0912b8, inset 0 0 0 5px #110d1377; width: 100%; transition: opacity .3s, transform .6s }
 .gate::after { content: ''; position: absolute; inset: 7px; border: 1px solid #d4b67848; border-radius: 20px 20px 0 0; pointer-events: none }
+.gate::before { content: ''; position: absolute; top: -5px; left: calc(50% - 5px); width: 10px; height: 10px; transform: rotate(45deg); background: #463339; border: 1px solid #d4b678a6; pointer-events: none }
 .gate-heading { color: var(--brass); display: flex; gap: 12px; align-items: center; margin-bottom: 20px }
 .gate-heading h2 { color: var(--ink); font: 26px/1.2 var(--serif) }
 .tabs { display: flex; border-bottom: 1px solid var(--line); gap: 18px; margin-bottom: 16px }
@@ -82,7 +83,7 @@ input::placeholder { color: #b3a089 }
 .tour canvas.can-pick { cursor: pointer }
 .tour-overlay { position: absolute; inset: 0; pointer-events: none; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr auto; padding: clamp(16px, 3.5vw, 52px); gap: 15px; background: linear-gradient(110deg,#130d087b 0%,#150d0817 34%,transparent 57%), linear-gradient(0deg,#120b0795,transparent 25%); }
 .tour-overlay button, .tour-overlay a { pointer-events: auto }
-.tour-heading { grid-column: 1 / -1; align-self: start; max-width: 510px; text-shadow: 0 1px 12px #160c03 }
+.tour-heading { grid-column: 1; grid-row: 1; align-self: start; max-width: 510px; text-shadow: 0 1px 12px #160c03 }
 .tour-heading h1 { font: normal clamp(42px, 7vw, 92px)/.99 var(--serif); letter-spacing: -.065em; margin: 9px 0 14px }
 .tour-heading p:last-child { color: #f6dfbf; max-width: 335px; font-size: 13px }
 .tour-map { grid-column: 2; grid-row: 2 / 4; align-self: end; display: grid; grid-template-columns: repeat(2,minmax(100px,1fr)); gap: 5px; padding: 8px; border: 1px solid var(--line); background: #18110de8 }
@@ -155,10 +156,14 @@ dialog::backdrop { background: #100d14db }
   color-scheme: light;
   color: #302318;
   border: 2px solid #b49053;
-  background: radial-gradient(ellipse at 48% 29%, #f4e7c7 0%, #efdfb8 63%, #d6bb87 100%);
+  background: radial-gradient(ellipse at 48% 29%, #f7ebcf 0%, #f2e1bc 70%, #d9bf92 100%);
   box-shadow: 0 30px 100px #0c0809, inset 0 0 0 7px #7f5b3435;
   padding: clamp(18px, 4vw, 36px);
 }
+#book-dialog .book-dialog-header { align-items: start; border-bottom: 1px solid #86654765; padding-bottom: 10px; margin-bottom: 14px }
+#book-dialog .book-dialog-header > div { min-width: 0 }
+#book-dialog #book-title { margin-bottom: 0 }
+#book-dialog #selected-format { letter-spacing: .16em }
 #book-dialog .outline { background: #46363a; color: #faebd0; border-color: #816944 }
 #book-dialog .outline:hover { background: #554854 }
 #book-dialog .brass { background: #4b354b; color: #fbecd1; border-color: #785170 }
@@ -166,8 +171,9 @@ dialog::backdrop { background: #100d14db }
 #book-dialog .kicker { color: #654934 }
 #book-dialog #selected-author, #book-dialog #selected-description, #book-dialog .form-status { color: #513724 }
 #book-dialog .form-status[data-error=true] { color: #861f20 }
-#book-dialog .reader-nav { border-block: 1px solid #86654763; padding-block: 8px; margin-top: 14px }
+#book-dialog .reader-nav { border-block: 1px solid #86654763; padding: 10px 0; margin: 16px auto 0; max-width: 630px }
 #book-dialog .reader-nav button { min-height: 44px }
+#book-dialog .reader-nav span { min-width: 5.5em; text-align: center; font-variant-numeric: tabular-nums }
 #book-dialog #reader canvas { box-shadow: 0 4px 12px #49301d52 }
 .reader-study { border: 1px solid #86654766; padding: 10px 12px; margin-top: 15px }
 .reader-study summary { cursor: pointer; font-weight: 650 }
@@ -187,9 +193,14 @@ dialog .hall-actions { margin-top: 16px }
 #selected-author, #selected-description { margin-bottom: 8px; color: var(--soft) }
 #reader:not(:empty) { margin-top: 14px }
 #reader canvas { display: block; max-width: 100%; height: auto; margin: 14px auto }
-.epub-chapter { color-scheme: light; color: #292018; background: #f5eacb; font: 18px/1.7 var(--serif); padding: clamp(16px, 4vw, 40px); margin-top: 14px; overflow-wrap: anywhere; box-shadow: inset 0 0 24px #ab855238, 0 3px 10px #49301d42 }
+.epub-chapter { color-scheme: light; color: #292018; background: #f8edcf; font: clamp(17px, 2.6vw, 20px)/1.75 var(--serif); max-width: 68ch; margin: 14px auto 0; padding: clamp(16px, 4vw, 40px); overflow-wrap: anywhere; box-shadow: inset 0 0 24px #ab85522b, 0 3px 10px #49301d42 }
 .epub-chapter p { margin-block: 0 1em }
 .reader-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px }
+#shared-tour-dialog { max-width: 530px }
+#shared-tour-dialog > p:not(.form-status) { color: var(--soft) }
+#shared-tour-members { display: grid; gap: 5px; list-style: none; margin: 10px 0 0; padding: 0 }
+#shared-tour-members li { padding: 5px 9px; border-left: 1px solid var(--brass); background: #3c2c294f; overflow-wrap: anywhere }
+[data-shared-tour].is-sharing { border-color: var(--brass); color: var(--brass) }
 .layout:target { scroll-margin-top: 12px }
 .lightweight .threshold, .lightweight .threshold-half, .lightweight .hall-hero::before { background-image: none }
 .lightweight .entrance, .lightweight .hall-hero { min-height: auto }

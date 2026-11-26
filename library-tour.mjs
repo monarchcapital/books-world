@@ -29,6 +29,7 @@ const candleWax = new THREE.MeshStandardMaterial({ color: 0xf2d9ae, roughness: .
 const candleFlame = new THREE.MeshBasicMaterial({ color: 0xffc367 });
 const candleCore = new THREE.MeshBasicMaterial({ color: 0xffe6ac });
 const bookCloth = new Map(colours.map(color => [color, new THREE.MeshStandardMaterial({ color, roughness: .91 })]));
+const galleryNames = { west: 'West Stacks', east: 'East Gallery', archives: 'Archives' };
 
 function panel(parent, material, dimensions, position) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(...dimensions), material);
@@ -98,6 +99,153 @@ function stonework() {
   return map;
 }
 
+function wovenRunner(parent) {
+  const canvas = Object.assign(document.createElement('canvas'), { width: 240, height: 320 });
+  const ink = canvas.getContext('2d');
+  ink.fillStyle = '#493149';
+  ink.fillRect(0, 0, 240, 320);
+  ink.strokeStyle = '#806343';
+  ink.lineWidth = 2;
+  for (const x of [9, 17, 22, 218, 223, 231]) {
+    ink.beginPath();
+    ink.moveTo(x, 0);
+    ink.lineTo(x, 320);
+    ink.stroke();
+  }
+  ink.save();
+  ink.translate(120, 160);
+  ink.strokeStyle = '#a58359';
+  for (const radius of [38, 46, 56]) {
+    ink.beginPath();
+    ink.arc(0, 0, radius, 0, Math.PI * 2);
+    ink.stroke();
+  }
+  ink.fillStyle = '#c7a276';
+  ink.beginPath();
+  for (let index = 0; index < 16; index++) {
+    const angle = index * Math.PI / 8 - Math.PI / 2;
+    const radius = index % 2 ? 12 : index % 4 ? 34 : 52;
+    ink.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+  }
+  ink.closePath();
+  ink.fill();
+  for (const x of [-60, 60]) {
+    for (const y of [-82, 82]) {
+      ink.beginPath();
+      ink.arc(x, y, 3, 0, Math.PI * 2);
+      ink.fill();
+    }
+  }
+  ink.restore();
+  for (let y = 0; y < 320; y += 3) {
+    ink.fillStyle = y % 2 ? '#e1ae7812' : '#26182346';
+    ink.fillRect(0, y, 240, 1);
+  }
+  const weave = new THREE.CanvasTexture(canvas);
+  weave.colorSpace = THREE.SRGBColorSpace;
+  weave.wrapT = THREE.RepeatWrapping;
+  weave.repeat.y = 6;
+  const runner = new THREE.Mesh(new THREE.PlaneGeometry(2.38, 19.4), new THREE.MeshStandardMaterial({ map: weave, roughness: 1 }));
+  runner.rotation.x = -Math.PI / 2;
+  runner.position.set(0, .02, .1);
+  parent.add(runner);
+}
+
+function roseWindow(parent, refresh) {
+  const surround = new THREE.Mesh(new THREE.RingGeometry(1.69, 1.89, 64), stone);
+  surround.position.set(0, 8.08, -13.46);
+  parent.add(surround);
+  const lead = new THREE.Mesh(new THREE.RingGeometry(1.61, 1.73, 64), brass);
+  lead.position.set(0, 8.08, -13.39);
+  parent.add(lead);
+  const glassMaterial = new THREE.MeshBasicMaterial({ color: 0x9a9bb2, toneMapped: false });
+  const glass = new THREE.Mesh(new THREE.CircleGeometry(1.67, 64), glassMaterial);
+  glass.position.set(0, 8.08, -13.43);
+  parent.add(glass);
+
+  const spillMaterial = new THREE.MeshBasicMaterial({
+    transparent: true, opacity: .43, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false
+  });
+  const spill = new THREE.Mesh(new THREE.CircleGeometry(1, 40), spillMaterial);
+  spill.rotation.set(-Math.PI / 2, 0, -.2);
+  spill.position.set(.56, .028, -3.8);
+  spill.scale.set(2.10, 3.06, 1);
+  spill.visible = false;
+  parent.add(spill);
+
+  new THREE.TextureLoader().load(new URL('./moonlit-glass.jpg', import.meta.url).href, glassMap => {
+    glassMap.colorSpace = THREE.SRGBColorSpace;
+    glassMap.anisotropy = 4;
+    glassMaterial.map = glassMap;
+    glassMaterial.color.setHex(0xffffff);
+    glassMaterial.needsUpdate = true;
+
+    const pattern = Object.assign(document.createElement('canvas'), { width: 256, height: 256 });
+    const light = pattern.getContext('2d');
+    light.filter = 'blur(6px)';
+    light.drawImage(glassMap.image, 0, 0, 256, 256);
+    light.filter = 'none';
+    light.globalCompositeOperation = 'destination-in';
+    const edge = light.createRadialGradient(128, 128, 42, 128, 128, 125);
+    edge.addColorStop(0, '#fff');
+    edge.addColorStop(.7, '#ffffffa0');
+    edge.addColorStop(1, '#ffffff00');
+    light.fillStyle = edge;
+    light.fillRect(0, 0, 256, 256);
+    const lightMap = new THREE.CanvasTexture(pattern);
+    lightMap.colorSpace = THREE.SRGBColorSpace;
+    spillMaterial.map = lightMap;
+    spillMaterial.needsUpdate = true;
+    spill.visible = true;
+    refresh();
+  });
+  return spillMaterial;
+}
+
+function armillary(parent) {
+  const stand = new THREE.Group();
+  stand.position.set(-1.04, .985, -8.52);
+  parent.add(stand);
+  for (const [radius, height, y] of [[.15, .04, .02], [.108, .025, .055], [.033, .18, .15]]) {
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 1.05, height, 18), brass);
+    base.position.y = y;
+    stand.add(base);
+  }
+  const globe = new THREE.Mesh(new THREE.SphereGeometry(.069, 16, 12), new THREE.MeshStandardMaterial({ color: 0x416a6d, roughness: .48 }));
+  globe.position.y = .303;
+  stand.add(globe);
+  for (const [radius, tilt, twist] of [[.206, .13, -.38], [.175, 1.13, .40], [.146, .5, 1.29]]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, .008, 8, 36), brass);
+    ring.position.y = .303;
+    ring.rotation.set(tilt, twist, -.28);
+    stand.add(ring);
+  }
+}
+
+function stackPlaque(parent, label, stop, targets) {
+  const plaqueCanvas = Object.assign(document.createElement('canvas'), { width: 512, height: 112 });
+  const ctx = plaqueCanvas.getContext('2d');
+  ctx.fillStyle = '#25282c';
+  ctx.fillRect(0, 0, 512, 112);
+  ctx.strokeStyle = '#c69a57';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(8, 8, 496, 96);
+  ctx.strokeRect(15, 15, 482, 82);
+  ctx.fillStyle = '#eecb89';
+  ctx.font = '36px Georgia';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, 256, 56);
+  const map = new THREE.CanvasTexture(plaqueCanvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  panel(parent, brass, [1.88, .44, .06], [0, 3.57, .353]);
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(1.82, .398), new THREE.MeshBasicMaterial({ map }));
+  face.position.set(0, 3.57, .388);
+  face.userData.stop = stop;
+  parent.add(face);
+  targets.push(face);
+}
+
 function taper(scene, x, y, z, phase) {
   const item = new THREE.Group();
   item.position.set(x, y, z);
@@ -159,9 +307,13 @@ function lamp(parent, x, y, z, glow = 3.2) {
   const rod = new THREE.Mesh(new THREE.CylinderGeometry(.015, .022, .32, 8), brass);
   rod.position.set(x, y + .17, z);
   parent.add(rod);
-  const shade = new THREE.Mesh(new THREE.ConeGeometry(.24, .16, 12, 1, true), new THREE.MeshStandardMaterial({ color: 0xc7a374, emissive: 0x7e4929, emissiveIntensity: .48, side: THREE.DoubleSide }));
+  const shade = new THREE.Mesh(new THREE.CylinderGeometry(.092, .23, .15, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x477468, emissive: 0x133d35, emissiveIntensity: .38, roughness: .29, side: THREE.DoubleSide }));
   shade.position.set(x, y + .36, z);
   parent.add(shade);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(.226, .013, 7, 28), brass);
+  rim.rotation.x = -Math.PI / 2;
+  rim.position.set(x, y + .286, z);
+  parent.add(rim);
   const light = new THREE.PointLight(0xffc991, glow, 7, 1.65);
   light.position.set(x, y + .28, z);
   parent.add(light);
@@ -295,20 +447,43 @@ function person(selection) {
         arms[index].rotation.x = -swing * (index ? -1 : 1);
       }
       root.position.y = walking && !reduced ? Math.abs(Math.sin(time)) * .032 : 0;
+    },
+    wave(elapsed, reduced) {
+      const active = elapsed >= 0 && elapsed < 1_480;
+      arms[1].rotation.z = active ? 2.23 + (reduced ? 0 : Math.sin(elapsed / 85) * .26) : .103;
+      if (active) arms[1].rotation.x = -.18;
     }
   };
 }
 
-function space(scene, targets) {
+function visitorLabel(username) {
+  const canvas = Object.assign(document.createElement('canvas'), { width: 360, height: 76 });
+  const ink = canvas.getContext('2d');
+  ink.fillStyle = '#241d29ef';
+  ink.fillRect(0, 3, 360, 70);
+  ink.strokeStyle = '#bfa16a';
+  ink.strokeRect(1, 4, 358, 68);
+  ink.fillStyle = '#f9e6b9';
+  ink.font = '34px Georgia';
+  ink.textBaseline = 'middle';
+  ink.textAlign = 'center';
+  ink.fillText(username, 180, 38, 330);
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const label = new THREE.Sprite(new THREE.SpriteMaterial({ map, sizeAttenuation: true, toneMapped: false }));
+  label.scale.set(1.1, .23, 1);
+  return label;
+}
+
+function space(scene, targets, refresh) {
   timber.map = texture('#765541', '#2a1e1a');
   trim.map = timber.map;
   const parquet = texture('#735741', '#2a2019', true);
   parquet.repeat.set(5, 10);
   const floor = new THREE.MeshStandardMaterial({ color: 0x906d50, map: parquet, roughness: .77 });
   panel(scene, floor, [11.4, .1, 29], [0, -.075, 0]);
-  const rug = new THREE.MeshStandardMaterial({ color: 0x493746, roughness: 1 });
   panel(scene, timber, [2.65, .022, 19.5], [0, -.005, .1]);
-  panel(scene, rug, [2.38, .028, 19.4], [0, .003, .1]);
+  wovenRunner(scene);
   for (const x of [-1.15, 1.15]) panel(scene, brass, [.016, .006, 19.35], [x, .023, .1]);
   const compass = new THREE.Mesh(new THREE.RingGeometry(.69, .71, 40), brass);
   compass.rotation.x = -Math.PI / 2;
@@ -329,7 +504,9 @@ function space(scene, targets) {
       panel(scene, trim, [.82, .18, .73], [x * .94, .09, z]);
     }
   }
-  for (const z of [-12, -7.6, -2.7, 2, 6.8, 11.5]) arch(scene, z, 5.16, 5.70, stone);
+  for (const z of [-12, -7.6, -2.7, 2, 6.8, 11.5]) {
+    arch(scene, z, 5.16, 5.70, stone).position.y = -.29;
+  }
   const roof = new THREE.Shape();
   roof.moveTo(-5.51, 5.65);
   roof.quadraticCurveTo(-5.19, 8.69, 0, 11.52);
@@ -344,9 +521,9 @@ function space(scene, targets) {
   panel(scene, timber, [2.8, 5.0, .20], [0, 2.45, -13.45]);
   arch(scene, -13.3, 1.44, 4.9, brass);
   const panes = [0x98a2a4, 0x9e8ea5, 0xbab38c, 0x899fa1, 0xa8959f].map(color => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .50, roughness: .46 }));
-  lancet(scene, 0, 6.30, -13.39, 1.85, 3.74, panes);
-  lancet(scene, -2.39, 6.05, -13.38, 1.11, 2.64, panes.slice(1));
-  lancet(scene, 2.39, 6.05, -13.38, 1.11, 2.64, panes.slice(2));
+  const stainedLight = roseWindow(scene, refresh);
+  lancet(scene, -2.52, 6.05, -13.38, 1.21, 2.91, panes.slice(1));
+  lancet(scene, 2.52, 6.05, -13.38, 1.21, 2.91, panes.slice(2));
   for (const x of [-3.56, 3.56]) {
     const banner = panel(scene, new THREE.MeshStandardMaterial({ color: x < 0 ? 0x563440 : 0x374450, roughness: 1 }), [1.05, 2.42, .019], [x, 5.03, -13.46]);
     panel(scene, brass, [1.18, .064, .065], [x, 6.27, -13.41]);
@@ -359,7 +536,8 @@ function space(scene, targets) {
   const sun = new THREE.DirectionalLight(0xffe3bd, 1.82);
   sun.position.set(-2, 9, -11);
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight(0xffebcf, 0xb2957e, 1.97));
+  const sky = new THREE.HemisphereLight(0xffebcf, 0xb2957e, 1.97);
+  scene.add(sky);
   scene.add(new THREE.AmbientLight(0xffe6ca, .26));
   for (const z of [8.5, 4.4, -.3, -5, -10.2]) {
     const aisleLight = new THREE.PointLight(0xffe2b5, 19, 11, 1.36);
@@ -374,6 +552,7 @@ function space(scene, targets) {
     for (const z of [-8.90, -7.99]) panel(scene, timber, [.15, .94, .15], [x, .46, z]);
   }
   lamp(scene, 1.11, 1.02, -8.58, 7);
+  armillary(scene);
   lamp(scene, -3.12, 1.55, 7.2, 6);
   lamp(scene, 3.12, 1.55, 2.6, 6);
   lamp(scene, -3.12, 1.55, -3.5, 6);
@@ -385,12 +564,13 @@ function space(scene, targets) {
   const spaces = {};
   for (const [id, x, z, side] of [['west', -5, 4.4, 1], ['east', 5, -.3, -1], ['archives', -5, -5, 1]]) {
     spaces[id] = shelf(scene, x, z, side, id, targets);
+    stackPlaque(spaces[id].parent, galleryNames[id], id, targets);
   }
   const alcoves = [];
   for (const [x, z, side] of [[5, 4.4, -1], [-5, -.3, 1], [5, -5, -1], [-5, -9.8, 1], [5, -9.8, -1], [-5, 9.15, 1], [5, 9.15, -1]]) {
     alcoves.push(shelf(scene, x, z, side, x === -5 ? 'west' : 'east', targets));
   }
-  return { spaces, alcoves, flames };
+  return { spaces, alcoves, flames, sun, sky, stainedLight };
 }
 
 function disposeGroup(group) {
@@ -411,7 +591,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
   scene.fog = new THREE.FogExp2(0x2e211a, .019);
   const camera = new THREE.PerspectiveCamera(61, 1, .065, 80);
   const targets = [];
-  const { spaces: shelves, alcoves, flames } = space(scene, targets);
+  const { spaces: shelves, alcoves, flames, sun, sky, stainedLight } = space(scene, targets, draw);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
@@ -430,6 +610,8 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
   let behind;
   let openedCover;
   let walker;
+  let localWave = -Infinity;
+  const visitors = new Map();
   let lastFrame = 0;
   let lastPaint = 0;
   let lastAim = 0;
@@ -461,6 +643,72 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     scene.add(walker.root);
     follow(2.8);
     draw();
+  }
+
+  function presencePose() {
+    if (!walker) return;
+    return {
+      x: walker.root.position.x, z: walker.root.position.z, facing: walker.root.rotation.y,
+      walking: Boolean(moving.size || animation)
+    };
+  }
+
+  function removeVisitor(visitor) {
+    scene.remove(visitor.avatar.root, visitor.label);
+    visitor.label.material.map.dispose();
+    visitor.label.material.dispose();
+    const materials = new Set();
+    visitor.avatar.root.traverse(object => {
+      if (object.isMesh && ![brass, cream].includes(object.material)) materials.add(object.material);
+    });
+    disposeGroup(visitor.avatar.root);
+    for (const material of materials) material.dispose();
+  }
+
+  function setVisitors(members) {
+    const present = new Set(members.map(member => member.id));
+    for (const [id, visitor] of visitors) {
+      const member = members.find(entry => entry.id === id);
+      if (present.has(id) && member.avatar === visitor.selection) continue;
+      removeVisitor(visitor);
+      visitors.delete(id);
+    }
+    for (const member of members) {
+      let visitor = visitors.get(member.id);
+      if (!visitor) {
+        const avatar = person(member.avatar);
+        const label = visitorLabel(member.username);
+        avatar.root.position.set(member.x, 0, member.z);
+        avatar.root.rotation.y = member.facing;
+        label.position.set(member.x, 1.44, member.z);
+        scene.add(avatar.root, label);
+        visitor = { avatar, label, selection: member.avatar, offset: parseInt(member.id.slice(0, 2), 16) % 2 ? .53 : -.53, wave: 0, waveFrom: -Infinity };
+        visitors.set(member.id, visitor);
+      }
+      visitor.pose = member;
+      if (member.wave && visitor.wave !== member.wave) {
+        visitor.wave = member.wave;
+        visitor.waveFrom = performance.now();
+      }
+    }
+    if (!paused && !frame) frame = requestAnimationFrame(animate);
+  }
+
+  function animateVisitors(time, delta) {
+    for (const { avatar, label, pose, offset, waveFrom } of visitors.values()) {
+      const blend = reduced.matches ? 1 : 1 - Math.exp(-5.2 * delta);
+      const besideWalker = walker && Math.hypot(pose.x - walker.root.position.x, pose.z - walker.root.position.z) < .38;
+      const targetX = besideWalker ? THREE.MathUtils.clamp(pose.x + offset, -4.26, 4.26) : pose.x;
+      avatar.root.position.x = THREE.MathUtils.lerp(avatar.root.position.x, targetX, blend);
+      avatar.root.position.z = THREE.MathUtils.lerp(avatar.root.position.z, pose.z, blend);
+      const turn = pose.facing - avatar.root.rotation.y;
+      avatar.root.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * blend;
+      const remaining = Math.hypot(pose.x - avatar.root.position.x, pose.z - avatar.root.position.z);
+      avatar.pace(delta, pose.walking && remaining > .035, reduced.matches);
+      avatar.wave(time - waveFrom, reduced.matches);
+      label.position.set(avatar.root.position.x, 1.44 + avatar.root.position.y, avatar.root.position.z);
+    }
+    walker?.wave(time - localWave, reduced.matches);
   }
 
   function walk(delta) {
@@ -558,8 +806,10 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       }
     } else if (moving.size) walk(delta);
     else if (walker) walker.pace(0, false, reduced.matches);
+    animateVisitors(time, delta);
     const idleLights = !document.hidden && !reduced.matches;
-    if ((idleLights && time - lastPaint >= 32) || active || moving.size || !lastPaint) {
+    const social = !document.hidden && (visitors.size || time - localWave < 1_480);
+    if (((idleLights || social) && time - lastPaint >= 32) || active || moving.size || !lastPaint) {
       if (idleLights) {
         for (const flame of flames) {
           flame.item.position.y = flame.y + Math.sin(time * .00125 + flame.phase) * .094;
@@ -569,7 +819,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       draw();
       lastPaint = time;
     }
-    if ((animation || moving.size || idleLights) && !frame) frame = requestAnimationFrame(animate);
+    if ((animation || moving.size || idleLights || social) && !frame) frame = requestAnimationFrame(animate);
     else lastFrame = 0;
   }
 
@@ -877,13 +1127,25 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
   });
 
   return {
-    go, stage, locate, setBooks, setAvatar, movement, stopMoving, zoom,
+    go, stage, locate, setBooks, setAvatar, movement, stopMoving, zoom, presencePose, setVisitors,
+    wave() {
+      localWave = performance.now();
+      if (!paused && !frame) frame = requestAnimationFrame(animate);
+    },
     page: step => setBooks(stored, Math.max(0, Math.min(shelfIndex + step, pageCount(stop.id) - 1))),
     setVisible(visible) {
       paused = !visible;
       if (visible) { resize(); if (!frame) frame = requestAnimationFrame(animate); }
       else stopMoving();
     },
-    setLighting(night) { renderer.toneMappingExposure = night ? .72 : 1.34; draw(); }
+    setLighting(night) {
+      renderer.toneMappingExposure = night ? .96 : 1.34;
+      sun.color.setHex(night ? 0xa4b8ed : 0xffe3bd);
+      sun.intensity = night ? .66 : 1.82;
+      sky.color.setHex(night ? 0xd3d6f5 : 0xffebcf);
+      sky.intensity = night ? 1.52 : 1.97;
+      stainedLight.opacity = night ? .15 : .43;
+      draw();
+    }
   };
 }

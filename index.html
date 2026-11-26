@@ -106,6 +106,8 @@
             <button class="outline" type="button" id="tour-office" hidden>Ria’s Office <span id="tour-notifications" class="counter" hidden></span></button>
             <button class="outline" type="button" id="tour-light" aria-pressed="false">Night lighting</button>
             <button class="outline" type="button" data-sound aria-pressed="false">Ambience</button>
+            <button class="outline" type="button" data-shared-tour>Shared tour</button>
+            <button class="outline" type="button" data-wave hidden>Wave</button>
             <div class="tour-page" id="tour-page" hidden>
               <button class="outline" type="button" id="tour-prev" aria-label="Previous shelf">‹</button>
               <span id="tour-page-label" aria-live="polite"></span>
@@ -116,6 +118,7 @@
             <button type="button" class="outline" id="walk-menu-button" aria-pressed="false">Walk</button>
             <button type="button" class="outline" id="compact-shelf-books" hidden>Shelf</button>
             <button type="button" class="outline" id="map-menu-button">Map</button>
+            <button type="button" class="outline" data-wave hidden>Wave</button>
             <button type="button" class="outline" id="tour-menu-button">Menu</button>
           </nav>
         </div>
@@ -307,9 +310,22 @@
       <button class="outline" type="button" id="compact-office" data-drawer-close hidden>Ria’s Office</button>
       <button class="outline" type="button" id="compact-light" aria-pressed="false">Night lighting</button>
       <button class="outline" type="button" data-sound aria-pressed="false">Ambience</button>
+      <button class="outline" type="button" data-shared-tour>Shared tour</button>
       <button class="outline" type="button" id="avatar-girl" data-avatar-choice="girl" hidden>Use girl avatar</button>
       <button class="outline" type="button" id="avatar-boy" data-avatar-choice="boy" hidden>Use boy avatar</button>
     </div>
+  </dialog>
+  <dialog id="shared-tour-dialog" aria-labelledby="shared-tour-title">
+    <div class="book-dialog-header">
+      <h2 class="section-title" id="shared-tour-title">Shared tour</h2>
+      <form method="dialog"><button class="outline" type="submit" aria-label="Close shared tour">Close</button></form>
+    </div>
+    <p>When you join, other participants can see your username, avatar, and position in the library. Sharing pauses while you read.</p>
+    <div class="office-actions">
+      <button class="brass" type="button" id="join-shared-tour" aria-pressed="false">Join shared tour</button>
+    </div>
+    <p id="shared-tour-status" class="form-status" role="status"></p>
+    <ul id="shared-tour-members" aria-label="Members nearby" hidden></ul>
   </dialog>
 </body>
 </html>
