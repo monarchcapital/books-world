@@ -77,6 +77,8 @@
             <h1 id="tour-room" tabindex="-1">The Grand Hall</h1>
             <p id="tour-instructions">Use W A S D or the arrow controls to walk. Select a bookcase to approach it.</p>
           </div>
+          <div class="wand-target" id="wand-target" aria-hidden="true"><span></span></div>
+          <button class="wand-book outline" id="wand-book" type="button" hidden></button>
           <div id="tour-book-label" class="tour-book-label" aria-hidden="true"></div>
           <div class="tour-zoom" role="group" aria-label="Tour zoom">
             <button type="button" class="outline" id="zoom-out" aria-label="Zoom out">−</button>
@@ -99,6 +101,7 @@
           <div class="tour-actions">
             <a class="brass" href="#shelves">Catalogue <span aria-hidden="true">↓</span></a>
             <button class="outline" type="button" id="shelf-books" hidden>Books on this shelf</button>
+            <button class="outline" type="button" data-study>Private study</button>
             <button class="outline" type="button" id="tour-office" hidden>Ria’s Office <span id="tour-notifications" class="counter" hidden></span></button>
             <button class="outline" type="button" id="tour-light" aria-pressed="false">Night lighting</button>
             <div class="tour-page" id="tour-page" hidden>
@@ -107,6 +110,12 @@
               <button class="outline" type="button" id="tour-next" aria-label="Next shelf">›</button>
             </div>
           </div>
+          <nav class="tour-compact-nav" aria-label="Quick tour controls">
+            <button type="button" class="outline" id="walk-menu-button" aria-pressed="false">Walk</button>
+            <button type="button" class="outline" id="compact-shelf-books" hidden>Shelf</button>
+            <button type="button" class="outline" id="map-menu-button">Map</button>
+            <button type="button" class="outline" id="tour-menu-button">Menu</button>
+          </nav>
         </div>
       </section>
       <div class="hall-hero">
@@ -115,6 +124,7 @@
           <h1 id="hall-title" tabindex="-1">The Grand Hall</h1>
           <div class="hall-actions">
             <a class="brass" href="#shelves">Explore the shelves <span aria-hidden="true">↓</span></a>
+            <button class="outline" type="button" data-study>Private study</button>
             <button class="outline" type="button" id="office-button" hidden>Ria’s office <span id="notification-count" class="counter" hidden></span></button>
           </div>
         </div>
@@ -129,6 +139,16 @@
         </div>
         <p id="catalogue-status" class="form-status" role="status"></p>
         <div id="shelf-display" class="bookcase"></div>
+      </section>
+      <section class="layout shelves" id="study" aria-labelledby="study-title" hidden>
+        <p class="kicker"><span></span> Your reading</p>
+        <h2 class="section-title" id="study-title" tabindex="-1">Your private study</h2>
+        <div class="office-actions">
+          <label>Show <select id="study-filter"><option value="recent">Recently read</option><option value="saved">Saved books</option><option value="collections">Collections</option></select></label>
+          <button class="outline" type="button" id="study-refresh">Refresh study</button>
+        </div>
+        <p id="study-status" class="form-status" role="status"></p>
+        <div id="study-books" class="bookcase"></div>
       </section>
       <section class="office" id="office" aria-labelledby="office-title" hidden>
         <div class="layout">
@@ -200,7 +220,28 @@
     <div class="hall-actions">
       <button class="brass" type="button" id="read-book">Read book</button>
       <button class="outline" type="button" id="download-book">Download</button>
+      <button class="outline" type="button" id="favorite-book" aria-pressed="false">Save book</button>
     </div>
+    <details id="reader-study" class="reader-study">
+      <summary>Bookmarks, highlights and notes</summary>
+      <form id="collection-book-form" class="office-actions">
+        <label>Collections <input name="collections" placeholder="Separate collection names with commas" maxlength="280"></label>
+        <button class="outline" type="submit">Save collections</button>
+      </form>
+      <div id="reader-annotations" hidden>
+        <div class="office-actions">
+          <button class="outline" type="button" id="bookmark-book">Bookmark this page</button>
+          <button class="outline" type="button" id="highlight-book">Highlight selected text</button>
+        </div>
+        <form id="note-book-form" class="office-actions">
+          <label>Personal note<textarea name="note" rows="2" maxlength="1800" required></textarea></label>
+          <button class="outline" type="submit">Save note</button>
+        </form>
+      </div>
+      <p id="study-book-status" class="form-status" role="status"></p>
+      <div id="study-book-marks" class="office-actions"></div>
+      <div id="study-book-notes" class="study-book-notes"></div>
+    </details>
     <p class="form-status" id="reader-status" role="status"></p>
     <div id="reader"></div>
   </dialog>
@@ -211,6 +252,39 @@
       <form method="dialog"><button class="outline" aria-label="Close shelf">Close</button></form>
     </div>
     <div id="shelf-dialog-list" class="shelf-dialog-list"></div>
+    <div class="office-actions" id="compact-shelf-pages" hidden>
+      <button class="outline" type="button" id="compact-shelf-prev">Previous shelf</button>
+      <span id="compact-shelf-position" aria-live="polite"></span>
+      <button class="outline" type="button" id="compact-shelf-next">Next shelf</button>
+    </div>
+  </dialog>
+  <dialog id="tour-map-dialog" aria-labelledby="tour-map-title">
+    <div class="book-dialog-header">
+      <h2 class="section-title" id="tour-map-title">Floor plan</h2>
+      <form method="dialog"><button class="outline" aria-label="Close map">Close</button></form>
+    </div>
+    <div class="tour-drawer-list">
+      <button class="outline" type="button" data-stop="hall">Grand Hall</button>
+      <button class="outline" type="button" data-stop="west">West Stacks</button>
+      <button class="outline" type="button" data-stop="east">East Gallery</button>
+      <button class="outline" type="button" data-stop="archives">Archives</button>
+      <button class="outline" type="button" data-stop="desk">Reading Desk</button>
+      <button class="outline" type="button" data-stop="portrait" hidden>Portrait Gallery</button>
+    </div>
+  </dialog>
+  <dialog id="tour-menu-dialog" aria-labelledby="tour-menu-title">
+    <div class="book-dialog-header">
+      <h2 class="section-title" id="tour-menu-title">Library menu</h2>
+      <form method="dialog"><button class="outline" aria-label="Close menu">Close</button></form>
+    </div>
+    <div class="tour-drawer-list">
+      <a class="outline" href="#shelves" data-drawer-close>Find a book</a>
+      <button class="outline" type="button" data-study data-drawer-close>Private study</button>
+      <button class="outline" type="button" id="compact-office" data-drawer-close hidden>Ria’s Office</button>
+      <button class="outline" type="button" id="compact-light" aria-pressed="false">Night lighting</button>
+      <button class="outline" type="button" id="avatar-girl" data-avatar-choice="girl" hidden>Use girl avatar</button>
+      <button class="outline" type="button" id="avatar-boy" data-avatar-choice="boy" hidden>Use boy avatar</button>
+    </div>
   </dialog>
 </body>
 </html>

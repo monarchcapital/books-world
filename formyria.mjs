@@ -13,6 +13,7 @@ let tour;
 let tourLoading;
 let tourFailed = false;
 let currentShelfBooks = [];
+let aimedBook;
 
 function showStop(place) {
   const names = { hall: 'The Grand Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery' };
@@ -49,14 +50,28 @@ async function loadTour() {
         canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, onPick: openBook, compact,
         getCover: async book => (await request(filePath(book, 'cover'), { raw: true })).blob(),
         getPortrait: async () => (await request('/api/art/portrait', { raw: true })).blob(),
-        hasPortrait: available => { $('[data-stop="portrait"]').hidden = !available; },
+        hasPortrait: available => { document.querySelectorAll('[data-stop="portrait"]').forEach(button => { button.hidden = !available; }); },
+        onAim(book) {
+          if (aimedBook?.id === book?.id) return;
+          aimedBook = book;
+          const button = $('#wand-book');
+          button.hidden = !book;
+          $('#wand-target').classList.toggle('locked', Boolean(book));
+          if (book) button.replaceChildren(document.createTextNode(book.title), node('span', 'Open book'));
+          else button.replaceChildren();
+        },
         onPage(index, total, books) {
           currentShelfBooks = books;
-          $('#shelf-books').hidden = books.length === 0;
+          $('#shelf-books').hidden = $('#compact-shelf-books').hidden = books.length === 0;
           $('#tour-page').hidden = total < 2;
           $('#tour-page-label').textContent = 'Shelf ' + (index + 1) + ' of ' + total;
           $('#tour-prev').disabled = index === 0;
           $('#tour-next').disabled = index + 1 >= total;
+          $('#compact-shelf-pages').hidden = total < 2;
+          $('#compact-shelf-position').textContent = (index + 1) + ' of ' + total;
+          $('#compact-shelf-prev').disabled = index === 0;
+          $('#compact-shelf-next').disabled = index + 1 >= total;
+          if ($('#shelf-dialog').open) setShelfChoices();
         }
       });
       tour.setAvatar(state.account?.avatar || (state.account?.role === 'admin' ? 'librarian' : 'member'));
@@ -71,14 +86,30 @@ async function loadTour() {
 }
 
 document.querySelectorAll('[data-stop]').forEach(control => {
-  control.addEventListener('click', () => tour?.go(control.dataset.stop));
+  control.addEventListener('click', () => {
+    control.closest('dialog')?.close();
+    tour?.go(control.dataset.stop);
+  });
 });
 $('#tour-canvas').addEventListener('tourunavailable', () => { tourFailed = true; showTour(false); });
 $('#tour-prev').addEventListener('click', () => tour?.page(-1));
 $('#tour-next').addEventListener('click', () => tour?.page(1));
+$('#compact-shelf-prev').addEventListener('click', () => tour?.page(-1));
+$('#compact-shelf-next').addEventListener('click', () => tour?.page(1));
 $('#zoom-in').addEventListener('click', () => tour?.zoom(-8));
 $('#zoom-out').addEventListener('click', () => tour?.zoom(8));
-$('#shelf-books').addEventListener('click', () => {
+$('#wand-book').addEventListener('click', () => { if (aimedBook) openBook(aimedBook); });
+$('#map-menu-button').addEventListener('click', () => $('#tour-map-dialog').showModal());
+$('#tour-menu-button').addEventListener('click', () => $('#tour-menu-dialog').showModal());
+$('#walk-menu-button').addEventListener('click', event => {
+  const visible = $('#library-tour').classList.toggle('walk-open');
+  event.currentTarget.setAttribute('aria-pressed', String(visible));
+  if (!visible) tour?.stopMoving();
+});
+for (const item of document.querySelectorAll('[data-drawer-close]')) {
+  item.addEventListener('click', () => item.closest('dialog')?.close());
+}
+function setShelfChoices() {
   const dialog = $('#shelf-dialog');
   const choices = currentShelfBooks.map(book => {
     const button = node('button', book.title, 'outline');
@@ -88,8 +119,13 @@ $('#shelf-books').addEventListener('click', () => {
     return button;
   });
   $('#shelf-dialog-list').replaceChildren(...choices);
-  if (choices.length) dialog.showModal();
-});
+}
+function pickFromShelf() {
+  setShelfChoices();
+  if (currentShelfBooks.length) $('#shelf-dialog').showModal();
+}
+$('#shelf-books').addEventListener('click', pickFromShelf);
+$('#compact-shelf-books').addEventListener('click', pickFromShelf);
 document.querySelectorAll('[data-walk]').forEach(control => {
   let started = 0;
   let stop;
@@ -112,13 +148,16 @@ document.querySelectorAll('[data-walk]').forEach(control => {
     stop = setTimeout(() => move(false), 170);
   });
 });
-$('#tour-light').addEventListener('click', event => {
-  const control = event.currentTarget;
-  const night = control.getAttribute('aria-pressed') !== 'true';
-  control.setAttribute('aria-pressed', String(night));
-  control.textContent = night ? 'Day lighting' : 'Night lighting';
+function setNight() {
+  const night = $('#tour-light').getAttribute('aria-pressed') !== 'true';
+  for (const control of [$('#tour-light'), $('#compact-light')]) {
+    control.setAttribute('aria-pressed', String(night));
+    control.textContent = night ? 'Day lighting' : 'Night lighting';
+  }
   tour?.setLighting(night);
-});
+}
+$('#tour-light').addEventListener('click', setNight);
+$('#compact-light').addEventListener('click', setNight);
 
 function storage(type, key, value) {
   try {
@@ -147,6 +186,7 @@ function setSession(token, account) {
   storage('sessionStorage', 'formyria-session', token);
   $('#sign-out').hidden = !token;
   $('#avatar-menu').hidden = account?.role !== 'member';
+  $('#avatar-girl').hidden = $('#avatar-boy').hidden = account?.role !== 'member';
   $('#avatar-select').value = account?.avatar === 'girl' || account?.avatar === 'boy' ? account.avatar : 'member';
   if (account && tour) tour.setAvatar(account.avatar || (account.role === 'admin' ? 'librarian' : 'member'));
 }
@@ -187,6 +227,8 @@ function mode(next) {
 function closeLibrary(message = '') {
   if ($('#book-dialog').open) $('#book-dialog').close();
   if ($('#shelf-dialog').open) $('#shelf-dialog').close();
+  if ($('#tour-map-dialog').open) $('#tour-map-dialog').close();
+  if ($('#tour-menu-dialog').open) $('#tour-menu-dialog').close();
   setSession(null, null);
   state.books = [];
   state.categories.clear();
@@ -195,8 +237,11 @@ function closeLibrary(message = '') {
   $('#shelf-display').replaceChildren();
   $('#member-list').replaceChildren();
   $('#office').hidden = true;
+  $('#study').hidden = true;
+  $('#study-books').replaceChildren();
   $('#office-button').hidden = true;
   $('#tour-office').hidden = true;
+  $('#compact-office').hidden = true;
   $('#library').hidden = true;
   $('#entrance').hidden = false;
   $('#entrance').classList.remove('entering');
@@ -224,6 +269,7 @@ async function enter(animate) {
   window.scrollTo(0, 0);
   $('#office-button').hidden = state.account.role !== 'admin';
   $('#tour-office').hidden = state.account.role !== 'admin';
+  $('#compact-office').hidden = state.account.role !== 'admin';
   await Promise.all([loadCatalogue(), loadTour(), state.account.role === 'admin' && loadNotifications()]);
 }
 
@@ -238,18 +284,23 @@ async function submit(form, task) {
 
 $('#login-tab').addEventListener('click', () => mode('login'));
 $('#register-tab').addEventListener('click', () => mode('register'));
-$('#avatar-select').addEventListener('change', async event => {
-  const select = event.currentTarget;
-  if (select.value === 'member') { select.value = state.account?.avatar || 'member'; return; }
+async function chooseAvatar(avatar) {
+  const select = $('#avatar-select');
+  if (avatar === 'member') { select.value = state.account?.avatar || 'member'; return; }
   select.disabled = true;
   try {
-    const result = await request('/api/auth/avatar', { method: 'PATCH', data: { avatar: select.value } });
+    const result = await request('/api/auth/avatar', { method: 'PATCH', data: { avatar } });
     setSession(state.token, result.account);
   } catch (error) {
     select.value = state.account?.avatar || 'member';
     status(catalogueStatus, error.message, true);
   } finally { select.disabled = false; }
-});
+}
+$('#avatar-select').addEventListener('change', event => chooseAvatar(event.currentTarget.value));
+document.querySelectorAll('[data-avatar-choice]').forEach(button => button.addEventListener('click', () => {
+  button.closest('dialog').close();
+  chooseAvatar(button.dataset.avatarChoice);
+}));
 loginForm.addEventListener('submit', event => {
   event.preventDefault();
   const accessMode = state.mode;
@@ -301,9 +352,10 @@ $('#sign-out').addEventListener('click', async event => {
 function setLightweight(enabled) {
   body.classList.toggle('lightweight', enabled);
   $('#lightweight').setAttribute('aria-pressed', String(enabled));
-  $('#lightweight').textContent = enabled ? 'Cinematic mode' : 'Lightweight mode';
+  $('#lightweight').textContent = compact.matches ? (enabled ? '3D tour' : 'Lightweight') : (enabled ? 'Cinematic mode' : 'Lightweight mode');
 }
 setLightweight(storage('localStorage', 'formyria-lightweight') === 'true');
+compact.addEventListener('change', () => setLightweight(body.classList.contains('lightweight')));
 $('#lightweight').addEventListener('click', () => {
   const enabled = !body.classList.contains('lightweight');
   storage('localStorage', 'formyria-lightweight', String(enabled));
@@ -440,6 +492,7 @@ function openOffice() {
 }
 $('#office-button').addEventListener('click', openOffice);
 $('#tour-office').addEventListener('click', openOffice);
+$('#compact-office').addEventListener('click', openOffice);
 $('#mark-read').addEventListener('click', async () => {
   try {
     await request('/api/admin/notifications', { method: 'POST' });
@@ -447,12 +500,63 @@ $('#mark-read').addEventListener('click', async () => {
   } catch (error) { status(officeStatus, error.message, true); }
 });
 
+let studyBooks = [];
+function displayStudy() {
+  const mode = $('#study-filter').value;
+  const available = new Map(state.books.map(book => [book.id, book]));
+  const matches = studyBooks.filter(item => available.has(item.id) &&
+    (mode === 'recent' ? Boolean(item.readAt) : mode === 'saved' ? item.favorite : item.collections.length));
+  const results = matches.map(item => {
+    const book = available.get(item.id);
+    const button = node('button', book.title, 'spine');
+    button.type = 'button';
+    const label = mode === 'collections' ? item.collections.join(' · ') : mode === 'recent' ? 'Page ' + item.page + ' of ' + item.total : book.author;
+    button.append(node('small', label || book.format.toUpperCase()));
+    button.addEventListener('click', () => openBook(book));
+    return button;
+  });
+  $('#study-books').replaceChildren(...results);
+  status($('#study-status'), results.length ? results.length + (results.length === 1 ? ' book' : ' books') : 'No books in this view yet.');
+}
+
+async function openStudy() {
+  $('#study').hidden = false;
+  status($('#study-status'), 'Opening your study…');
+  try {
+    const result = await request('/api/study');
+    if (!state.account) return;
+    studyBooks = result.books;
+    displayStudy();
+  } catch (error) { status($('#study-status'), error.message, true); }
+}
+document.querySelectorAll('[data-study]').forEach(button => button.addEventListener('click', () => {
+  openStudy();
+  $('#study-title').focus({ preventScroll: true });
+  $('#study').scrollIntoView({ behavior: motion.matches ? 'instant' : 'smooth' });
+}));
+$('#study-filter').addEventListener('change', displayStudy);
+$('#study-refresh').addEventListener('click', openStudy);
+
 const dialog = $('#book-dialog');
 let readController;
 let readerCleanup;
+let bookReading;
+let readingReady;
+let activePage = 0;
+let showReaderPage;
+let selection = '';
+const readingDefaults = () => ({ page: 1, total: 1, favorite: false, collections: [], bookmarks: [], notes: [] });
+
 function openBook(book) {
   tour?.stopMoving();
   state.book = book;
+  activePage = 0;
+  showReaderPage = null;
+  selection = '';
+  bookReading = readingDefaults();
+  $('#reader-annotations').hidden = true;
+  $('#reader-study').open = false;
+  status($('#study-book-status'));
   $('#selected-format').textContent = [book.format.toUpperCase(), state.categories.get(book.genre)].filter(Boolean).join(' · ');
   $('#book-title').textContent = book.title;
   $('#selected-author').textContent = book.author || '';
@@ -460,14 +564,118 @@ function openBook(book) {
   $('#read-book').hidden = !state.account.readBooks;
   $('#download-book').hidden = !state.account.downloadBooks;
   status($('#reader-status'));
+  renderBookStudy();
+  readingReady = request('/api/study/' + encodeURIComponent(book.id)).then(result => {
+    if (state.book === book) { bookReading = result.reading; renderBookStudy(); }
+  }).catch(error => { if (state.book === book) status($('#study-book-status'), error.message, true); });
   dialog.showModal();
+  tour?.setVisible(false);
 }
 
 function filePath(book, intent) {
   return '/api/files/' + encodeURIComponent(book.id) + '/' + intent;
 }
 
-function pagination(total, render) {
+function renderBookStudy() {
+  const favorite = $('#favorite-book');
+  favorite.setAttribute('aria-pressed', String(bookReading.favorite));
+  favorite.textContent = bookReading.favorite ? 'Remove from saved' : 'Save book';
+  $('#collection-book-form').elements.collections.value = bookReading.collections.join(', ');
+  const mark = $('#bookmark-book');
+  mark.textContent = bookReading.bookmarks.includes(activePage) ? 'Remove page bookmark' : 'Bookmark this page';
+  $('#study-book-marks').replaceChildren(...bookReading.bookmarks.map(page => {
+    const button = node('button', 'Page ' + page, 'outline');
+    button.type = 'button';
+    button.disabled = !showReaderPage;
+    button.addEventListener('click', () => showReaderPage(page));
+    return button;
+  }));
+  const notes = bookReading.notes.map(note => {
+    const row = node('article');
+    const anchor = node('button', 'Page ' + note.page, 'outline');
+    anchor.type = 'button';
+    anchor.disabled = !showReaderPage;
+    anchor.addEventListener('click', () => showReaderPage(note.page));
+    row.append(anchor);
+    if (note.quote) row.append(node('blockquote', note.quote));
+    if (note.text) row.append(node('p', note.text));
+    const remove = node('button', 'Remove annotation', 'outline');
+    remove.type = 'button';
+    remove.addEventListener('click', () => saveBookStudy({ removeNote: note.id }));
+    row.append(remove);
+    return row;
+  });
+  $('#study-book-notes').replaceChildren(...notes);
+}
+
+async function saveBookStudy(update, quiet = false) {
+  const book = state.book;
+  if (!book) return false;
+  try {
+    const { reading } = await request('/api/study/' + encodeURIComponent(book.id), { method: 'PATCH', data: update });
+    if (state.book === book) {
+      bookReading = reading;
+      if (!quiet) status($('#study-book-status'), 'Saved to your private study.');
+      renderBookStudy();
+      if (activePage) paintHighlights();
+    }
+    return true;
+  } catch (error) {
+    if (state.book === book) status($('#study-book-status'), error.message, true);
+    return false;
+  }
+}
+
+function paintHighlights() {
+  const reader = $('#reader').querySelector('.epub-chapter, .pdf-selectable p');
+  if (!reader) return;
+  const quotes = bookReading.notes.filter(note => note.page === activePage && note.quote).map(note => note.quote);
+  for (const mark of reader.querySelectorAll('mark[data-user-highlight]')) {
+    mark.replaceWith(document.createTextNode(mark.textContent));
+  }
+  reader.normalize();
+  const walker = document.createTreeWalker(reader, NodeFilter.SHOW_TEXT);
+  const matches = [];
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    const quote = quotes.find(quote => text.textContent.includes(quote));
+    if (quote) matches.push({ text, quote });
+  }
+  for (const { text, quote } of matches) {
+    const range = document.createRange();
+    const offset = text.textContent.indexOf(quote);
+    range.setStart(text, offset);
+    range.setEnd(text, offset + quote.length);
+    const mark = node('mark');
+    mark.dataset.userHighlight = 'true';
+    range.surroundContents(mark);
+  }
+}
+
+$('#favorite-book').addEventListener('click', () => saveBookStudy({ favorite: !bookReading.favorite }));
+$('#bookmark-book').addEventListener('click', () => {
+  if (activePage) saveBookStudy({ bookmark: { page: activePage, remove: bookReading.bookmarks.includes(activePage) } });
+});
+$('#collection-book-form').addEventListener('submit', event => {
+  event.preventDefault();
+  saveBookStudy({ collections: event.currentTarget.elements.collections.value.split(',').map(value => value.trim()).filter(Boolean) });
+});
+$('#note-book-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const note = event.currentTarget.elements.note;
+  if (activePage && await saveBookStudy({ note: { page: activePage, text: note.value } })) note.value = '';
+});
+document.addEventListener('selectionchange', () => {
+  const text = window.getSelection();
+  if (dialog.open && text.anchorNode && $('#reader').contains(text.anchorNode) && text.toString().trim()) selection = text.toString().trim();
+});
+$('#highlight-book').addEventListener('click', () => {
+  if (selection && activePage) saveBookStudy({ note: { page: activePage, quote: selection } });
+  else status($('#study-book-status'), 'Select text in the chapter or open Selectable page text in the PDF reader.');
+});
+
+async function pagination(total, render) {
+  await readingReady;
+  if (!dialog.open) return;
   const previous = node('button', 'Previous', 'outline');
   const next = node('button', 'Next', 'outline');
   const label = node('span');
@@ -475,19 +683,33 @@ function pagination(total, render) {
   const controls = node('div', '', 'reader-nav');
   controls.append(previous, label, next);
   $('#reader').replaceChildren(controls);
-  let page = 1;
+  let page = Math.max(1, Math.min(total, bookReading.page || 1));
+  let busy = false;
   async function show(number) {
+    if (busy || number < 1 || number > total) return;
+    busy = true;
     page = number;
+    selection = '';
     previous.disabled = next.disabled = true;
     label.textContent = `${page} of ${total}`;
-    try { await render(page); }
+    try {
+      await render(page);
+      if (!dialog.open) return;
+      activePage = page;
+      $('#reader-annotations').hidden = false;
+      renderBookStudy();
+      paintHighlights();
+      saveBookStudy({ progress: { page, total } }, true);
+    }
     catch (error) { if (dialog.open) status($('#reader-status'), error.message, true); }
+    finally { busy = false; }
     previous.disabled = page === 1;
     next.disabled = page >= total;
   }
   previous.addEventListener('click', () => show(page - 1));
   next.addEventListener('click', () => show(page + 1));
-  return show(1);
+  showReaderPage = show;
+  return show(page);
 }
 
 async function readPdf(book, signal) {
@@ -500,6 +722,23 @@ async function readPdf(book, signal) {
   if (signal.aborted) return;
   const canvas = node('canvas');
   canvas.setAttribute('aria-label', 'PDF page');
+  const selectable = node('details', '', 'pdf-selectable');
+  selectable.append(node('summary', 'Selectable page text'), node('p'));
+  let highlightedPage;
+  let oldPage;
+  async function pageText() {
+    if (selectable.open && highlightedPage && oldPage !== highlightedPage) {
+      const current = highlightedPage;
+      try {
+        const { items } = await current.getTextContent();
+        if (current !== highlightedPage || signal.aborted) return;
+        selectable.querySelector('p').textContent = items.map(item => item.str === undefined ? '' : item.str + (item.hasEOL ? '\n' : ' ')).join('').trim() || 'This PDF page has no selectable text.';
+        oldPage = current;
+        if (activePage) paintHighlights();
+      } catch { selectable.querySelector('p').textContent = 'Selectable text is unavailable for this page.'; }
+    }
+  }
+  selectable.addEventListener('toggle', pageText);
   await pagination(documentPdf.numPages, async number => {
     const page = await documentPdf.getPage(number);
     if (signal.aborted) return;
@@ -507,8 +746,10 @@ async function readPdf(book, signal) {
     const viewport = page.getViewport({ scale: Math.min(2, 1150 / width) });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
-    $('#reader').append(canvas);
+    highlightedPage = page;
+    $('#reader').append(canvas, selectable);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    await pageText();
   });
 }
 
@@ -612,6 +853,7 @@ dialog.addEventListener('close', () => {
   readerCleanup = undefined;
   $('#reader').replaceChildren();
   state.book = null;
+  if (!$('#library-tour').hidden && state.account) tour?.setVisible(true);
 });
 
 if (state.token) {

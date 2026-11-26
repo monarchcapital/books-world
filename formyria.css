@@ -11,7 +11,7 @@
 }
 *, *::before, *::after { box-sizing: border-box }
 [hidden] { display: none !important }
-body { margin: 0; background: var(--background); color: var(--ink); font: 15px/1.55 var(--sans) }
+body { margin: 0; overflow-x: clip; max-width: 100%; background: var(--background); color: var(--ink); font: 15px/1.55 var(--sans) }
 button, input, select { font: inherit }
 button { cursor: pointer }
 button:disabled { cursor: wait; opacity: .68 }
@@ -22,6 +22,7 @@ h1, h2, h3, p { margin: 0 }
 .wordmark { display: inline-flex; align-items: center; gap: 13px; text-decoration: none; color: var(--brass); font: 17px/1.1 var(--serif); letter-spacing: .18em }
 .wordmark small { display: block; margin-top: 5px; color: var(--ink); font: 10px/1 var(--sans); text-transform: uppercase; letter-spacing: .19em }
 .navigation, .hall-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center }
+.navigation { min-width: 0; justify-content: end }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0 }
 .avatar-menu select { min-height: 40px; padding-inline: 7px; font-size: 12px }
 .quiet, .outline { min-height: 40px; background: #231b16; color: var(--ink); border: 1px solid var(--line); padding: 8px 14px }
@@ -29,7 +30,7 @@ h1, h2, h3, p { margin: 0 }
 .quiet:hover, .outline:hover { background: #413126; border-color: var(--brass) }
 .entrance { isolation: isolate; min-height: calc(100svh - 78px); position: relative; display: grid; align-items: center; overflow: hidden; padding: 76px clamp(20px, 8.2vw, 132px) 96px; background: #1f1712 }
 .threshold { position: absolute; z-index: -2; inset: 0; overflow: hidden; background: #262019 url('./grand-hall.jpg') center / cover no-repeat }
-.threshold-half { position: absolute; inset: 0; background: #2b211a url('./library-doors.jpg') center 52% / cover no-repeat; transition: transform 1.15s cubic-bezier(.66,.05,.27,1), opacity .9s .3s }
+.threshold-half { position: absolute; inset: 0; background: #2b211a url('./wizarding-doors.jpg') center 52% / cover no-repeat; transition: transform 1.15s cubic-bezier(.66,.05,.27,1), opacity .9s .3s }
 .threshold-left { clip-path: inset(0 50% 0 0) }
 .threshold-right { clip-path: inset(0 0 0 50%) }
 .threshold-lock { position: absolute; left: calc(50% - 9px); top: calc(55% - 9px); width: 18px; height: 18px; border: 1px solid #ffe7a6; border-radius: 50%; opacity: 0; box-shadow: 0 0 38px 13px #ffd893a5 }
@@ -41,7 +42,8 @@ h1, h2, h3, p { margin: 0 }
 .entrance h1 { font: normal clamp(68px, 10.5vw, 156px)/.83 var(--serif); letter-spacing: -.075em; margin: 25px 0 28px; color: #fff2df }
 .entrance h1 em { color: #ead0a8; font-weight: inherit }
 .entrance-description { color: #f1dfca; max-width: 270px; font-size: 15px }
-.gate { background: #1d1713f5; border: 1px solid #b9986c6b; padding: clamp(20px, 3.2vw, 35px); box-shadow: 0 20px 85px #110a06b8, inset 0 0 0 5px #100c0957; width: 100%; transition: opacity .3s, transform .6s }
+.gate { position: relative; background: radial-gradient(ellipse at 50% 6%,#392d35f7,#231b21fa 38%,#1b1519fb 100%); border: 1px solid #b9986c9c; border-radius: 26px 26px 1px 1px; padding: clamp(20px, 3.2vw, 35px); box-shadow: 0 20px 85px #0f0912b8, inset 0 0 0 5px #110d1377; width: 100%; transition: opacity .3s, transform .6s }
+.gate::after { content: ''; position: absolute; inset: 7px; border: 1px solid #d4b67848; border-radius: 20px 20px 0 0; pointer-events: none }
 .gate-heading { color: var(--brass); display: flex; gap: 12px; align-items: center; margin-bottom: 20px }
 .gate-heading h2 { color: var(--ink); font: 26px/1.2 var(--serif) }
 .tabs { display: flex; border-bottom: 1px solid var(--line); gap: 18px; margin-bottom: 16px }
@@ -96,6 +98,10 @@ input::placeholder { color: #b3a089 }
 .tour-zoom { grid-column: 2; grid-row: 1; align-self: start; justify-self: end; display: flex; gap: 4px }
 .tour-zoom .outline { min-width: 44px; min-height: 44px; padding: 0; font-size: 22px; color: var(--brass); background: #1c130fea }
 .tour-map [aria-current] { border-color: var(--brass); color: var(--brass) }
+.tour-compact-nav, .wand-target, .wand-book { display: none }
+.tour-drawer-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px }
+.tour-drawer-list .outline { text-decoration: none; text-align: center; min-height: 44px; display: grid; place-items: center }
+.tour-drawer-list [aria-current] { border-color: var(--brass); color: var(--brass) }
 .tour-actions { grid-row: 3; grid-column: 1; display: flex; flex-wrap: wrap; gap: 8px; align-self: end }
 .tour-actions .outline { background: #1b140fe8 }
 .tour-page { display: inline-flex; align-items: center; gap: 8px; padding: 1px; padding-inline: 3px; background: #17110def; color: var(--soft); font-size: 12px }
@@ -143,12 +149,40 @@ input::placeholder { color: #b3a089 }
 #edit-dialog label { margin-top: 12px }
 #edit-dialog textarea { min-height: 72px; min-width: 0; background: #130f0d; color: var(--ink); border: 1px solid var(--line); padding: 8px; font: inherit }
 dialog { width: min(900px, calc(100% - 30px)); max-height: 90svh; border: 1px solid var(--brass); background: #201a16; color: var(--ink); padding: 25px }
-dialog::backdrop { background: #0e0907cf }
+dialog::backdrop { background: #100d14db }
+#book-dialog {
+  color-scheme: light;
+  color: #302318;
+  border: 2px solid #b49053;
+  background: radial-gradient(ellipse at 48% 29%, #f4e7c7 0%, #efdfb8 63%, #d6bb87 100%);
+  box-shadow: 0 30px 100px #0c0809, inset 0 0 0 7px #7f5b3435;
+  padding: clamp(18px, 4vw, 36px);
+}
+#book-dialog .outline { background: #46363a; color: #faebd0; border-color: #816944 }
+#book-dialog .outline:hover { background: #554854 }
+#book-dialog .brass { background: #4b354b; color: #fbecd1; border-color: #785170 }
+#book-dialog .brass:hover { background: #644b64 }
+#book-dialog .kicker { color: #654934 }
+#book-dialog #selected-author, #book-dialog #selected-description, #book-dialog .form-status { color: #513724 }
+#book-dialog .form-status[data-error=true] { color: #861f20 }
+#book-dialog .reader-nav { border-block: 1px solid #86654763; padding-block: 8px }
+#book-dialog #reader canvas { box-shadow: 0 4px 12px #49301d52 }
+.reader-study { border: 1px solid #86654766; padding: 10px 12px; margin-top: 15px }
+.reader-study summary { cursor: pointer; font-weight: 650 }
+.reader-study input, .reader-study textarea { background: #f8ecca; color: #302318; border: 1px solid #9e7954; font: inherit; padding: 6px 8px }
+.reader-study input::placeholder { color: #69523c }
+.reader-study textarea { width: min(440px, 65vw); max-width: 100%; resize: vertical }
+.study-book-notes article { border-block-start: 1px solid #86654758; margin-top: 12px; padding-top: 10px }
+.study-book-notes button { margin-top: 6px }
+.epub-chapter mark { background: #dec477; color: #2d2318 }
+.pdf-selectable { margin-top: 14px; border: 1px solid #86654766; padding: 12px; background: #f5eacb }
+.pdf-selectable summary { cursor: pointer }
+.pdf-selectable p { overflow-wrap: anywhere; white-space: pre-wrap; padding-top: 8px; font: 16px/1.65 var(--serif) }
 dialog .hall-actions { margin-top: 16px }
 #selected-author, #selected-description { margin-bottom: 8px; color: var(--soft) }
 #reader:not(:empty) { margin-top: 14px }
 #reader canvas { display: block; max-width: 100%; height: auto; margin: 14px auto }
-.epub-chapter { color-scheme: light; color: #292018; background: #eee0c7; font: 18px/1.7 var(--serif); padding: 24px; margin-top: 14px; overflow-wrap: anywhere }
+.epub-chapter { color-scheme: light; color: #292018; background: #f5eacb; font: 18px/1.7 var(--serif); padding: clamp(16px, 4vw, 40px); margin-top: 14px; overflow-wrap: anywhere; box-shadow: inset 0 0 24px #ab855238, 0 3px 10px #49301d42 }
 .epub-chapter p { margin-block: 0 1em }
 .reader-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px }
 .layout:target { scroll-margin-top: 12px }
@@ -191,6 +225,31 @@ dialog .hall-actions { margin-top: 16px }
   .tour-map button, .tour-actions .brass, .tour-actions .outline, .walk-controls button { min-height: 44px; min-width: 44px }
   .walk-controls { grid-template-columns: repeat(3,44px); grid-template-rows: 44px 44px }
   .tour-book-label { margin-bottom: 100px }
+}
+@media (max-width: 850px), (pointer: coarse) {
+  .topbar { padding-inline: 14px; gap: 7px }
+  .navigation { gap: 4px }
+  .navigation .avatar-menu { display: none }
+  .topbar .quiet { padding: 5px 8px; min-height: 35px; white-space: nowrap; font-size: 11px }
+  .tour { height: min(76svh, 780px); height: clamp(410px, calc(100svh - 70px), 820px); min-height: 0 }
+  .tour-overlay { display: block; padding: 0; background: linear-gradient(180deg,#160e0999,transparent 31%,transparent 62%,#160e09cf); }
+  .tour-heading { position: absolute; left: 14px; right: 103px; top: 14px }
+  .tour-heading h1 { font-size: clamp(30px,8vw,57px); margin: 0; line-height: .96; letter-spacing: -.05em }
+  .tour-heading p { display: none }
+  .tour-map, .tour-actions, .tour-book-label { display: none }
+  .tour-zoom { position: absolute; right: 12px; top: 12px; gap: 4px }
+  .tour-zoom .outline { min-height: 42px; min-width: 42px }
+  .tour-compact-nav { position: absolute; inset-inline: 10px; bottom: 10px; display: flex; align-items: stretch; justify-content: center; gap: 4px; background: #18120ee8; padding: 4px; border: 1px solid var(--line) }
+  .tour-compact-nav .outline { flex: 1 1 0; min-height: 42px; min-width: 0; padding: 6px 4px; font-size: 12px }
+  .tour-compact-nav [aria-pressed="true"] { border-color: var(--brass); color: var(--brass) }
+  .walk-controls { display: none; position: absolute; bottom: 72px; left: 12px }
+  .tour.walk-open .walk-controls { display: grid }
+  .wand-target { position: absolute; display: block; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%,-50%); border: 1px solid #faedc5; border-radius: 50%; box-shadow: 0 0 5px #17110a, inset 0 0 4px #17110a }
+  .wand-target span { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; transform: translate(-50%,-50%); background: #fff4d7; border-radius: 50% }
+  .wand-target.locked { border-color: #fed88e; box-shadow: 0 0 13px #ffbf5dc9; }
+  .wand-book { position: absolute; display: block; top: calc(50% + 17px); left: 50%; width: max-content; max-width: min(310px, calc(100% - 32px)); transform: translateX(-50%); padding: 9px 13px; min-height: 44px; background: #21170feb; color: #f8e4ba; line-height: 1.18; text-align: center; overflow-wrap: anywhere; }
+  .wand-book span { display: block; color: var(--brass); font-size: 11px; padding-top: 4px }
+  .bookcase, .catalogue-controls, .member-row { min-width: 0 }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important }
