@@ -3,14 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="The private entrance to Ria’s Library.">
+  <meta name="description" content="Enter Formyria Castle and visit Ria’s Library, the Orrery Tower, and the Conservatory.">
   <meta name="theme-color" content="#181411">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://rias-library.nutmegarbor1.chatgpt.site; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>Ria’s Library · Formyria</title>
-  <link rel="stylesheet" href="./formyria.css?v=12">
-  <script src="./formyria.mjs?v=12" type="module"></script>
+  <link rel="stylesheet" href="./formyria.css?v=13">
+  <link rel="stylesheet" href="./castle.css?v=13">
+  <script src="./formyria.mjs?v=13" type="module"></script>
 </head>
 <body data-library-api="https://rias-library.nutmegarbor1.chatgpt.site">
   <header class="topbar">
@@ -18,7 +19,8 @@
       <svg viewBox="0 0 32 36" width="29" height="33" aria-hidden="true" fill="none"><path d="M3 34V14a13 13 0 0 1 26 0v20H3Z M7 30V14a9 9 0 0 1 18 0v16H7Z M16 13v17 M9 19h14 M12 24h1m6 0h1" stroke="currentColor" stroke-width="1.3"/></svg>
       <span>FORMYRIA<small>Ria’s Library</small></span>
     </a>
-    <nav class="navigation" aria-label="Library navigation">
+    <nav class="navigation" aria-label="Castle navigation">
+      <button class="quiet" type="button" id="return-to-castle" data-castle-hall hidden>Castle Hall</button>
       <button class="quiet" type="button" id="lightweight" aria-pressed="false">Lightweight mode</button>
       <button class="quiet" type="button" id="library-menu-button" aria-haspopup="dialog" hidden>Menu</button>
       <label class="avatar-menu" id="avatar-menu" hidden><span class="visually-hidden">Your avatar</span><select id="avatar-select"><option value="member">Choose avatar</option><option value="girl">Girl avatar</option><option value="boy">Boy avatar</option></select></label>
@@ -27,22 +29,23 @@
   </header>
 
   <main>
-    <section id="entrance" class="entrance" aria-labelledby="entrance-title">
-      <div class="threshold" aria-hidden="true">
-        <div class="threshold-half threshold-left"></div>
-        <div class="threshold-half threshold-right"></div>
-        <div class="threshold-lock"></div>
+    <section id="entrance" class="entrance castle-gate" aria-labelledby="entrance-title">
+      <div class="gate-view" aria-hidden="true">
+        <div class="gate-camera">
+          <img src="./castle-gate.webp" width="1672" height="941" alt="" fetchpriority="high">
+          <div class="gate-opening"><div class="portcullis"></div></div>
+          <div class="bridge-haze"></div>
+        </div>
       </div>
+      <div class="gate-fade" aria-hidden="true"></div>
       <div class="entrance-content">
         <div class="entrance-copy">
-          <p class="kicker"><span></span> The private library</p>
-          <h1 id="entrance-title">Ria’s<br><em>Library</em></h1>
-          <p class="entrance-description">A quiet place to read and discover. Membership is approved by the librarian.</p>
+          <h1 id="entrance-title">Formyria<br><em>Castle</em></h1>
         </div>
         <div class="gate" id="gate">
           <div class="gate-heading">
             <svg aria-hidden="true" width="23" height="25" viewBox="0 0 24 25" fill="none"><path d="M5 11V7a7 7 0 0 1 14 0v4m-17 0h20v13H2zm10 5v4" stroke="currentColor" stroke-width="1.3"/></svg>
-            <h2 id="gate-title">Enter the library</h2>
+            <h2 id="gate-title">Sign in at the gate</h2>
           </div>
           <div id="auth-tabs" class="tabs" aria-label="Account access">
             <button type="button" id="login-tab" aria-pressed="true">Sign in</button>
@@ -56,7 +59,7 @@
               <label><input type="radio" name="avatar" value="girl" checked><svg width="23" height="26" aria-hidden="true" viewBox="0 0 24 26" fill="none"><path d="M5 15v-5c0-4.2 2.5-7 7-7s7 2.8 7 7v5m-13 9v-2c0-4 3-6 6-6s6 2 6 6v2m-2-14c0 2.8-1.5 5-4 5s-4-2.2-4-5m0 0c2 0 5-1 6-3" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg> Girl</label>
               <label><input type="radio" name="avatar" value="boy"><svg width="23" height="26" aria-hidden="true" viewBox="0 0 24 26" fill="none"><path d="M6 24v-2c0-4 3-6 6-6s6 2 6 6v2M7 10V8c0-3 2-5 5-5s5 2 5 5v2c0 2.8-2 5-5 5s-5-2.2-5-5Zm0 0 7-3 3 3" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg> Boy</label>
             </fieldset>
-            <button class="brass" id="access-submit" type="submit">Unlock the doors <span aria-hidden="true">↗</span></button>
+            <button class="brass" id="access-submit" type="submit">Raise the gate <span aria-hidden="true">↗</span></button>
           </form>
           <form id="password-form" hidden>
             <label>Current password<input name="currentPassword" required type="password" maxlength="128" autocomplete="current-password"></label>
@@ -66,7 +69,39 @@
           <p id="access-status" class="form-status" role="status" aria-live="polite"></p>
         </div>
       </div>
-      <div class="entrance-footer"><span>FORMYRIA</span><span>THE ENTRANCE</span></div>
+    </section>
+
+    <section id="castle-hub" class="castle-hub" aria-labelledby="castle-hub-title" hidden>
+      <div class="hub-caption">
+        <h1 id="castle-hub-title" tabindex="-1">Castle Hall</h1>
+        <p>Choose a door.</p>
+      </div>
+      <div class="hall-stage">
+        <div class="hall-camera" id="castle-hall-camera">
+          <img src="./castle-hall.webp" width="1672" height="941" alt="Three carved Gothic doorways in oak, blue and green" loading="lazy">
+          <div class="portal portal-library" aria-hidden="true"><span class="portal-leaf"></span></div>
+          <div class="portal portal-orrery" aria-hidden="true"><span class="portal-leaf"></span></div>
+          <div class="portal portal-conservatory" aria-hidden="true"><span class="portal-leaf"></span></div>
+          <div class="hall-lamp lamp-left" aria-hidden="true"></div>
+          <div class="hall-lamp lamp-right" aria-hidden="true"></div>
+        </div>
+        <nav class="castle-doors" aria-label="Castle doors">
+          <button class="castle-door door-library" type="button" data-castle-door="library"><span>Ria’s Library</span></button>
+          <button class="castle-door door-orrery" type="button" data-castle-door="orrery"><span>Orrery Tower</span></button>
+          <button class="castle-door door-conservatory" type="button" data-castle-door="conservatory"><span>Conservatory</span></button>
+        </nav>
+      </div>
+    </section>
+
+    <section id="castle-wing" class="castle-wing" data-wing="orrery" aria-labelledby="castle-wing-title" hidden>
+      <div class="wing-environment" aria-hidden="true"></div>
+      <div class="wing-content">
+        <div class="wing-heading">
+          <button type="button" class="quiet" data-castle-hall>← Castle Hall</button>
+          <h1 id="castle-wing-title" tabindex="-1"></h1>
+        </div>
+        <div id="castle-activities"></div>
+      </div>
     </section>
 
     <section id="library" hidden aria-labelledby="hall-title">
@@ -75,7 +110,7 @@
         <div class="tour-overlay">
           <div class="tour-heading">
             <p class="kicker"><span></span> Ria’s Library</p>
-            <h1 id="tour-room" tabindex="-1">The Grand Hall</h1>
+            <h1 id="tour-room" tabindex="-1">Library Hall</h1>
             <p id="tour-instructions">Use W A S D or the arrow controls to walk. Select a bookcase to approach it.</p>
             <button class="outline tour-academy-action" id="tour-academy-action" type="button" hidden>Academy activity</button>
           </div>
@@ -108,9 +143,8 @@
             <button class="outline" type="button" data-stop="west">West Stacks</button>
             <button class="outline" type="button" data-stop="east">East Gallery</button>
             <button class="outline" type="button" data-stop="portrait" hidden>Portrait Gallery</button>
-            <button class="outline" type="button" data-stop="court">Sunstone Court</button>
-            <button class="outline" type="button" data-stop="observatory" hidden>Observatory</button>
-            <button class="outline" type="button" data-stop="hall" aria-current="location">Grand Hall</button>
+            <button class="outline" type="button" data-stop="hall" aria-current="location">Library Hall</button>
+            <button class="outline" type="button" data-castle-hall>Castle Hall</button>
           </nav>
           <div class="tour-actions">
             <a class="brass" href="#shelves">Catalogue <span aria-hidden="true">↓</span></a>
@@ -120,7 +154,6 @@
             <button class="outline" type="button" id="tour-light" aria-pressed="false">Night lighting</button>
             <button class="outline" type="button" data-sound aria-pressed="false">Ambience</button>
             <button class="outline" type="button" data-shared-tour>Shared tour</button>
-            <button class="outline" type="button" data-academy>Academy</button>
             <button class="outline" type="button" data-wave hidden>Wave</button>
             <div class="tour-page" id="tour-page" hidden>
               <button class="outline" type="button" id="tour-prev" aria-label="Previous shelf">‹</button>
@@ -139,11 +172,11 @@
       <div class="hall-hero">
         <div class="hall-hero-content layout">
           <p class="kicker"><span></span> Ria’s Library</p>
-          <h1 id="hall-title" tabindex="-1">The Grand Hall</h1>
+          <h1 id="hall-title" tabindex="-1">Ria’s Library</h1>
           <div class="hall-actions">
             <a class="brass" href="#shelves">Explore the shelves <span aria-hidden="true">↓</span></a>
             <button class="outline" type="button" data-study>Private study</button>
-            <button class="outline" type="button" data-academy>Academy</button>
+            <button class="outline" type="button" data-castle-hall>Castle Hall</button>
             <button class="outline" type="button" id="office-button" hidden>Ria’s office <span id="notification-count" class="counter" hidden></span></button>
             <button class="outline" type="button" data-shared-tour>Shared tour settings</button>
           </div>
@@ -325,14 +358,13 @@
       <form method="dialog"><button class="outline" aria-label="Close map">Close</button></form>
     </div>
     <div class="tour-drawer-list">
-      <button class="outline" type="button" data-stop="hall">Grand Hall</button>
+      <button class="outline" type="button" data-stop="hall">Library Hall</button>
       <button class="outline" type="button" data-stop="west">West Stacks</button>
       <button class="outline" type="button" data-stop="east">East Gallery</button>
       <button class="outline" type="button" data-stop="archives">Archives</button>
       <button class="outline" type="button" data-stop="desk">Reading Desk</button>
       <button class="outline" type="button" data-stop="portrait" hidden>Portrait Gallery</button>
-      <button class="outline" type="button" data-stop="court">Sunstone Court</button>
-      <button class="outline" type="button" data-stop="observatory" hidden>Observatory</button>
+      <button class="outline" type="button" data-castle-hall>Castle Hall</button>
     </div>
   </dialog>
   <dialog class="library-sheet" id="tour-menu-dialog" aria-labelledby="tour-menu-title">
@@ -341,10 +373,10 @@
       <form method="dialog"><button class="outline" aria-label="Close menu">Close</button></form>
     </div>
     <div class="tour-drawer-list">
-      <a class="outline" href="#shelves" data-drawer-close>Find a book</a>
-      <a class="outline" href="#new-books" data-drawer-close>New books</a>
+      <button class="outline" type="button" data-castle-hall>Castle Hall</button>
+      <a class="outline" href="#shelves" data-library-jump>Find a book</a>
+      <a class="outline" href="#new-books" data-library-jump>New books</a>
       <button class="outline" type="button" data-book-requests>Book requests</button>
-      <button class="outline" type="button" data-academy>Academy</button>
       <button class="outline" type="button" data-study data-drawer-close>Private study</button>
       <button class="outline" type="button" id="compact-office" data-drawer-close hidden>Ria’s Office</button>
       <button class="outline" type="button" id="compact-light" aria-pressed="false" data-tour-only>Night lighting</button>
@@ -360,8 +392,6 @@
       <form method="dialog"><button class="outline" aria-label="Close academy">Close</button></form>
     </div>
     <nav class="office-actions academy-nav" aria-label="Academy activities">
-      <button class="outline" type="button" data-academy-tab="quest">Hidden room</button>
-      <button class="outline" type="button" data-academy-tab="lesson">Magic lesson</button>
       <button class="outline" type="button" data-academy-tab="coop">Co-op</button>
       <button class="outline" type="button" data-academy-tab="quiz">Book quizzes</button>
     </nav>

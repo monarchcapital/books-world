@@ -1,0 +1,313 @@
+.castle-gate {
+  --gate-center: 50.8%;
+  min-height: calc(100svh - 78px);
+  padding: 58px clamp(24px, 6vw, 100px);
+  background: #101318;
+}
+.castle-gate::before {
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg,#111018bd,transparent 36%,transparent 63%,#16101983),
+    linear-gradient(0deg,#121018ab,transparent 42%);
+}
+.gate-view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  container-type: size;
+}
+.gate-camera {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100cqw, 177.68cqh);
+  aspect-ratio: 1672 / 941;
+  transform: translate(-50%, -50%);
+  transform-origin: var(--gate-center) 64%;
+}
+.gate-camera img, .hall-camera > img { display: block; width: 100%; height: 100%; }
+.gate-opening {
+  position: absolute;
+  left: 44%;
+  top: 27%;
+  width: 14%;
+  height: 45%;
+  overflow: hidden;
+  clip-path: polygon(50% 0%,72% 10%,88% 24%,97% 40%,100% 58%,100% 100%,0 100%,0 55%,5% 40%,14% 25%,29% 11%);
+}
+.portcullis {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, #0b0908 0 1%, #8f79615e 1% 1.7%, #222021 1.7% 3.6%, transparent 4.2% 9.7%),
+    repeating-linear-gradient(180deg, #121010 0 1.8%, #706052ad 1.8% 2.7%, #201a18 2.7% 4%, transparent 4.5% 17%);
+  border-bottom: 6px solid #25211e;
+  filter: drop-shadow(2px 3px 1px #07080ae3);
+}
+.bridge-haze {
+  position: absolute;
+  inset: 61% -5% 4%;
+  opacity: .38;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 19% 59%, #eecdaa33, transparent 41%),
+    radial-gradient(ellipse at 68% 82%, #b9c6cc2c, transparent 43%);
+  animation: bridge-haze 12s ease-in-out infinite alternate;
+}
+.castle-gate .entrance-content { position: relative; z-index: 1; max-width: 1472px; }
+.castle-gate .entrance-copy { align-self: end; padding-bottom: clamp(2px, 12vh, 116px); }
+.castle-gate h1 { font-size: clamp(68px, 8vw, 134px); margin: 0; letter-spacing: -.069em; }
+.castle-gate .gate {
+  background: linear-gradient(150deg,#211d1ced, #161518f7);
+  border: 1px solid #a887578f;
+  border-radius: 1px;
+}
+.castle-gate .gate::after { border-radius: 0; }
+.gate-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: #0b0b10;
+  opacity: 0;
+}
+.castle-gate.entering .portcullis { animation: lift-gate 1000ms 110ms cubic-bezier(.48,.05,.26,1) both; }
+.castle-gate.entering .gate-camera { animation: cross-bridge 1550ms 440ms cubic-bezier(.62,.03,.57,1) both; }
+.castle-gate.entering .gate-fade { animation: gate-fade 1950ms ease-in forwards; }
+.castle-gate.entering .entrance-content { pointer-events: none; }
+@keyframes lift-gate {
+  0% { transform: translateY(0); }
+  12% { transform: translateY(-1%); }
+  22% { transform: translateY(-.3%); }
+  100% { transform: translateY(-105%); }
+}
+@keyframes bridge-haze { from { transform: translateX(-3%); } to { transform: translateX(4%); } }
+@keyframes cross-bridge {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  54% { transform: translate(-50%, -50%) scale(1.34); }
+  100% { transform: translate(-50%, -50%) scale(3.2); }
+}
+@keyframes gate-fade { 0%,76% { opacity: 0; } 100% { opacity: 1; } }
+
+.castle-hub, .castle-wing { position: relative; background: #12141a; overflow: hidden; }
+.castle-hub { min-height: calc(100svh - 78px); display: grid; align-items: center; }
+.hall-stage { position: relative; aspect-ratio: 1672 / 941; width: 100%; overflow: hidden; }
+.hall-camera { position: absolute; inset: 0; transform-origin: 50% 61%; }
+.hall-camera::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(0deg,#110e15b0,transparent 31%);
+}
+.hub-caption { position: absolute; z-index: 2; top: 0; left: 0; padding: clamp(22px,4vw,66px); text-shadow: 0 2px 15px #08060a; }
+.hub-caption h1, .wing-heading h1 { font: normal clamp(45px,7vw,104px)/.94 var(--serif); letter-spacing: -.067em; }
+.hub-caption p { color: #f2e3ca; margin-top: .6rem; }
+.castle-doors { position: absolute; z-index: 2; inset: 0; }
+.castle-door {
+  display: flex;
+  justify-content: center;
+  align-items: end;
+  position: absolute;
+  width: 18.7%;
+  height: 59%;
+  top: 25%;
+  border: 1px solid transparent;
+  border-radius: 50% 50% 0 0 / 26% 26% 0 0;
+  color: #fff1d6;
+  background: transparent;
+  transition: border-color .23s, background .23s;
+}
+.door-library { left: 15.2%; }
+.door-orrery { left: 41%; }
+.door-conservatory { left: 67.3%; }
+.castle-door span {
+  margin-bottom: .5rem;
+  padding: .56em .88em .62em;
+  background: #1b1614ef;
+  border: 1px solid #ae8e5d;
+  color: inherit;
+  line-height: 1.2;
+  font: clamp(15px, 1.9vw, 33px)/1.14 var(--serif);
+  box-shadow: 0 8px 21px #08060a9b;
+}
+.castle-door:hover, .castle-door:focus-visible {
+  border-color: #d6ba7970;
+  background: radial-gradient(ellipse at 50% 54%,#ecd29126,transparent 60%);
+}
+.castle-door:hover span, .castle-door:focus-visible span { color: #ffdf93; }
+.portal {
+  position: absolute;
+  opacity: 0;
+  overflow: hidden;
+  perspective: 520px;
+  background: #1a1516 var(--through) center / cover no-repeat;
+  clip-path: polygon(0 12%,7% 4%,17% 0,83% 0,96% 4%,100% 12%,100% 100%,0 100%);
+}
+.portal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 35px 15px #09080bc4;
+}
+.portal-library {
+  --through: url('./grand-hall.jpg');
+  --sheet-size:746.3% 306.7%;
+  --sheet-position:20.45% 60.6%;
+  left:17.7%; top:40.8%; width:13.4%; height:32.6%;
+}
+.portal-orrery {
+  --through: url('./castle-orrery.webp');
+  --sheet-size:683% 277%;
+  --sheet-position:50.84% 59%;
+  left:43.4%; top:37.7%; width:14.64%; height:36.1%;
+  clip-path: polygon(0 19%,12% 8%,25% 0,39% 1%,50% 8%,62% 0,75% 0,90% 10%,100% 19%,100% 100%,0 100%);
+}
+.portal-conservatory {
+  --through: url('./castle-conservatory.webp');
+  --sheet-size:747.7% 307%;
+  --sheet-position:80.84% 60.5%;
+  left:70.03%; top:40.8%; width:13.38%; height:32.57%;
+}
+.portal-leaf {
+  display: block;
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background: url('./castle-hall.webp') var(--sheet-position) / var(--sheet-size) no-repeat;
+  border-right: 2px solid #2e211b;
+}
+.castle-hub[data-opening="library"] { --door-center:24.4%; }
+.castle-hub[data-opening="orrery"] { --door-center:50.7%; }
+.castle-hub[data-opening="conservatory"] { --door-center:76.8%; }
+.castle-hub[data-opening] .hall-camera {
+  transform-origin: var(--door-center) 60%;
+  animation: pass-door 1220ms cubic-bezier(.52,.09,.42,1) both;
+}
+.castle-hub[data-opening] .castle-doors,
+.castle-hub[data-opening] .hub-caption { pointer-events: none; opacity: 0; transition: opacity .2s; }
+.castle-hub[data-opening="library"] .portal-library,
+.castle-hub[data-opening="orrery"] .portal-orrery,
+.castle-hub[data-opening="conservatory"] .portal-conservatory { opacity: 1; }
+.castle-hub[data-opening="library"] .portal-library .portal-leaf,
+.castle-hub[data-opening="orrery"] .portal-orrery .portal-leaf,
+.castle-hub[data-opening="conservatory"] .portal-conservatory .portal-leaf {
+  animation: swing-door 940ms cubic-bezier(.32,.06,.13,1) forwards;
+}
+.castle-hub.arriving .hall-camera { animation: arrive-hall 660ms cubic-bezier(.23,.72,.38,1) both; }
+.hall-lamp {
+  position: absolute;
+  background: radial-gradient(ellipse, #ffe7a054, #ffc76d13 25%, transparent 66%);
+  width: 8%;
+  height: 16%;
+  top: 39%;
+  animation: lantern-shift 4.7s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+.lamp-left { left: 31.7%; }
+.lamp-right { left: 60.7%; animation-delay: -1.8s; }
+@keyframes lantern-shift { 0%, 23%, 82% { opacity: .26; } 10%, 58%, 100% { opacity: .76; } }
+@keyframes pass-door { 0% { transform: scale(1); } 49% { transform: scale(1.38); } 100% { transform: scale(2.95); filter: brightness(.32); } }
+@keyframes swing-door { 0% { transform: rotateY(0); } 100% { transform: rotateY(-87deg); } }
+@keyframes arrive-hall { from { transform: scale(1.08); filter: brightness(.5); } to { transform: scale(1); } }
+
+.castle-wing { --wing-art: url('./castle-orrery.webp'); min-height: calc(100svh - 78px); isolation: isolate; }
+.castle-wing[data-wing="conservatory"] { --wing-art: url('./castle-conservatory.webp'); }
+.wing-environment {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg,#100c0d22 12%,transparent 48%,#16121b57 100%),
+    var(--wing-art) center / cover no-repeat;
+}
+.castle-wing.arriving .wing-environment { animation: arrive-hall 730ms ease-out both; }
+.wing-content {
+  width: min(1480px, calc(100% - 64px));
+  min-height: inherit;
+  margin: auto;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(340px,520px);
+  align-items: center;
+  padding: 70px 0;
+  gap: 26px;
+}
+.wing-heading {
+  display: grid;
+  justify-items: start;
+  align-self: end;
+  gap: 18px;
+  padding-bottom: clamp(15px,8vh,100px);
+  text-shadow: 0 3px 22px #110d10;
+}
+.wing-heading h1 { max-width: 8em; }
+.wing-heading button { background: #17151bdc; }
+.wing-panel {
+  border: 1px solid #9e815670;
+  box-shadow: 0 16px 70px #07070b87;
+  background: #17171ded;
+  padding: clamp(18px,2.5vw,32px);
+}
+.wing-panel h2 { font: normal clamp(29px,3vw,43px)/1 var(--serif); letter-spacing: -.03em; }
+.wing-panel p { margin: .8em 0; color: #e1cfb7; line-height: 1.48; }
+.wing-panel details { margin-top: 1rem; color: #edcea3; }
+.wing-panel summary { cursor: pointer; padding-block: .3rem; }
+.orrery-instrument { display: block; width: 100%; height: clamp(140px,20vw,240px); margin: .75rem 0; background: #0e1119; border: 1px solid #c8a96744; }
+.wing-controls { display: grid; gap: 10px; margin: .85rem 0; }
+.wing-step { display: grid; grid-template-columns: minmax(95px,1fr) minmax(74px,1fr) repeat(2,36px); gap: 5px; align-items: center; min-height: 38px; }
+.wing-step button { min-height: 38px; padding: 0; }
+.wing-step output { color: #f8d598; font-weight: 650; text-align: center; }
+.wing-panel .form-status { margin-bottom: 0; }
+.wing-tools { display: flex; align-items: stretch; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
+.wing-tools button { min-height: 40px; }
+.wing-ledger { list-style: none; padding: 0; display: grid; gap: 7px; margin: .8em 0; }
+.wing-ledger li { background: #101b16; border: 1px solid #4f6f5b; padding: .45em .65em; color: #e8edcf; }
+.conservatory-panel form label { margin: .55em 0; }
+.conservatory-panel form .botanical-choice { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .6rem; margin: 0; cursor: pointer; }
+.botanical-choice input { min-height: 0; height: 18px; width: 18px; accent-color: #d1b774; }
+.botanical-choice span { color: #dce4ba; font-variant-numeric: tabular-nums; font-size: .8rem; }
+.botanical-readings { font-variant-numeric: tabular-nums; }
+.castle-wing[data-finished="true"] .wing-environment { filter: saturate(1.13) brightness(1.16); transition: filter 1s ease; }
+.castle-wing[data-finished="true"] .wing-panel { border-color: #d6bd75; }
+.castle-wing[data-finished="true"] .orrery-instrument { border-color: #f3da91; }
+
+@media (max-width: 780px) {
+  #return-to-castle { display: none; }
+  .castle-gate { padding: 0 0 22px; min-height: calc(100svh - 62px); display: block; }
+  .castle-gate::before { display: none; }
+  .gate-view { height: clamp(320px, min(86vw, 52svh), 500px); }
+  .gate-view::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg,#101318,transparent 50%); pointer-events: none; }
+  .castle-gate .entrance-content { display: block; width: min(100%,480px); margin-inline: auto; padding: 0 18px; }
+  .castle-gate .entrance-copy { display: flex; align-items: end; padding: 0 0 20px; height: clamp(320px, min(86vw, 52svh), 500px); }
+  .castle-gate h1 { font-size: clamp(58px,13vw,93px); }
+  .castle-gate .gate { padding: 22px; }
+  .castle-gate .gate-heading { margin-bottom: 10px; }
+  .castle-hub { display: block; background: linear-gradient(180deg,#17141a 50%,#12141a 92%); }
+  .hub-caption { position: relative; padding: 24px 18px 20px; background: #17141a; }
+  .hub-caption h1 { font-size: clamp(54px,12vw,77px); }
+  .hall-stage { aspect-ratio: 1.15; }
+  .hall-stage::after {
+    content: '';
+    position: absolute;
+    inset: 82% 0 0;
+    pointer-events: none;
+    background: linear-gradient(0deg,#12141a61,transparent);
+  }
+  .castle-door { width: 28%; height: 68%; top: 23%; }
+  .door-library { left: 10.4%; }
+  .door-orrery { left: 36.7%; }
+  .door-conservatory { left: 62.8%; }
+  .castle-door span {
+    min-height: 42px;
+    align-content: center;
+    padding: .38em .46em;
+    font-size: clamp(14px,3.5vw,24px);
+    max-width: 100%;
+  }
+  .wing-environment { inset: 0 0 auto; height: clamp(310px,72vw,530px); }
+  .wing-environment::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg,#12141a,transparent 65%); }
+  .wing-content { display: block; width: min(100% - 26px,530px); padding: 12px 0 28px; }
+  .wing-heading { align-content: space-between; min-height: clamp(270px,66vw,470px); padding-bottom: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gate-view *, .castle-hub *, .castle-wing * { animation: none !important; transition: none !important; }
+}
+.lightweight .gate-view *, .lightweight .castle-hub *, .lightweight .castle-wing * { animation: none !important; }

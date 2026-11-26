@@ -1,14 +1,5 @@
 import { levels, quizzes } from './academy-quiz.mjs?v=12';
 
-const runes = { root: 'Root', ink: 'Ink', star: 'Star' };
-const notes = { ember: 'Ember', dew: 'Dew', leaf: 'Leaf', spark: 'Spark' };
-const stops = [
-  ['archives', 'The Archives', 'root'],
-  ['west', 'West Stacks', 'ink'],
-  ['court', 'Sunstone Court', 'star'],
-];
-const blank = { runes: [], observatory: false, lesson: false, lanterns: false };
-
 function node(tag, label, css) {
   const element = document.createElement(tag);
   if (label) element.textContent = label;
@@ -35,19 +26,14 @@ function shuffled(items) {
   return result;
 }
 
-export function academyActivities({ request, status, go, area, show, hide, active, unlock, storage, username }) {
+export function academyActivities({ request, status, go, area, show, hide, active, storage, username }) {
   const app = document.getElementById('academy-activity');
   const feedback = document.getElementById('academy-feedback');
   const dialog = document.getElementById('academy-dialog');
   const tabs = [...dialog.querySelectorAll('[data-academy-tab]')];
-  let tab = 'quest';
-  let progress = blank;
+  let tab = 'quiz';
+  let lanterns = false;
   let waiting = '';
-  let place = 'hall';
-  let challenge;
-  let recalling = false;
-  let attempt = [];
-  let sequence = [];
   let poll;
   let game;
   let generation = 0;
@@ -55,9 +41,8 @@ export function academyActivities({ request, status, go, area, show, hide, activ
 
   const message = (text = '', error = false) => status(feedback, text, error);
   function receive(result) {
-    progress = result.progress;
+    lanterns = result.progress.lanterns;
     waiting = result.waiting;
-    unlock(progress.observatory);
   }
   async function sync() {
     const revision = generation;
@@ -84,76 +69,13 @@ export function academyActivities({ request, status, go, area, show, hide, activ
       if (control) control.disabled = false;
     }
   }
-  function travel(target, reason = tab) {
-    place = target;
-    if (!go(target)) {
-      tab = reason;
-      message();
-      render();
-    } else hide();
-  }
-  function current() { return area() || place; }
-  function collect(rune, control) {
-    return play(control, { type: 'sigil', rune }, runes[rune] + ' sigil recorded.');
-  }
-  function quest() {
-    const spots = stops.map(([id, name, rune]) => {
-      if (progress.runes.includes(rune)) return node('span', name + ' · found');
-      if (current() === id) return button('Inspect the ' + runes[rune].toLowerCase() + ' sigil', event => collect(rune, event.currentTarget));
-      return button('Go to ' + name, () => travel(id, 'quest'));
-    });
-    app.append(node('h3', 'The Astronomer’s Lock'),
-      node('p', 'Explore the Archives, West Stacks, and Sunstone Court to find the three sigils.'),
-      row(...spots));
-    if (progress.observatory) {
-      app.append(node('p', 'The Hidden Observatory is unlocked.'), button('Enter the Observatory', () => travel('observatory'), 'brass'));
-      return;
-    }
-    if (progress.runes.length < 3) return;
-    app.append(node('p', 'The inscription shows how an astronomer worked. First a tree grew, then a journal was written, and last the heavens were mapped.'),
-      node('p', sequence.length ? sequence.map(rune => runes[rune]).join(' → ') : 'Choose the sigils in order.', 'academy-sequence'),
-      row(...Object.keys(runes).map(rune => {
-        const item = button(runes[rune], () => { sequence.push(rune); message(); render(); });
-        item.disabled = sequence.includes(rune);
-        return item;
-      }), button('Reset order', () => { sequence = []; message(); render(); })));
-    const open = button('Try the lock', event => play(event.currentTarget,
-      { type: 'unlock', order: sequence }, 'The Hidden Observatory is unlocked.', () => { sequence = []; }), 'brass');
-    open.disabled = sequence.length !== 3;
-    app.append(open);
-  }
-  function lesson() {
-    app.append(node('h3', 'Lanternlight Lesson'),
-      node('p', 'Study four spell notes, then repeat them in order.'),
-      ...(progress.lesson ? [node('p', 'Lesson completed. You can practise again.')] : []));
-    if (!challenge || !recalling) {
-      if (challenge) app.append(node('p', challenge.notes.map(note => notes[note]).join(' → '), 'academy-sequence'),
-        button('Hide notes and recall', () => { recalling = true; attempt = []; message(); render(); }, 'brass'));
-      app.append(button(challenge ? 'New sequence' : 'Start lesson', event => play(event.currentTarget, { type: 'lesson-start' }, '', result => {
-        challenge = result.challenge;
-        recalling = false;
-      }), challenge ? 'outline' : 'brass'));
-      return;
-    }
-    app.append(node('p', attempt.length ? attempt.map(note => notes[note]).join(' → ') : 'Choose four spell notes.', 'academy-sequence'),
-      row(...Object.keys(notes).map(note => {
-        const item = button(notes[note], () => { attempt.push(note); message(); render(); });
-        item.disabled = attempt.length >= challenge.notes.length;
-        return item;
-      })), row(button('Reset notes', () => { attempt = []; message(); render(); }),
-      button('Study again', () => { recalling = false; message(); render(); })));
-    const cast = button('Cast lanternlight', event => play(event.currentTarget, { type: 'lesson-answer', id: challenge.id, notes: attempt },
-      'Lanternlight cast. Lesson completed.', () => { challenge = undefined; recalling = false; }), 'brass');
-    cast.disabled = attempt.length !== challenge.notes.length;
-    app.append(cast);
-  }
   function coop() {
     app.append(node('h3', 'The Twin Lanterns'),
       node('p', 'Meet another member at Sunstone Court. Light the sun and moon lanterns within 45 seconds of each other.'));
-    if (progress.lanterns) app.append(node('p', 'Both lanterns lit. Co-op challenge completed.'));
+    if (lanterns) app.append(node('p', 'Both lanterns lit. Co-op challenge completed.'));
     if (area() !== 'court') {
-      app.append(button('Go to Sunstone Court', () => travel('court', 'coop')));
-      if (!area()) app.append(node('p', 'Open the 3D tour to play this challenge together.'));
+      if (area()) app.append(button('Go to Sunstone Court', () => { if (go('court')) hide(); }));
+      else app.append(node('p', 'Enter the courtyard through the Conservatory to play together.'));
       return;
     }
     if (waiting) app.append(node('p', 'Your ' + waiting + ' lantern is lit. Waiting for another member.', 'academy-sequence'));
@@ -171,7 +93,7 @@ export function academyActivities({ request, status, go, area, show, hide, activ
           if (!active() || tab !== 'coop') return;
           if (wasWaiting !== waiting) {
             render();
-            message(progress.lanterns ? 'Both lanterns lit. Challenge completed.' : 'Your lantern went out. Light it again when a partner is ready.');
+            message(lanterns ? 'Both lanterns lit. Challenge completed.' : 'Your lantern went out. Light it again when a partner is ready.');
           }
         } catch (error) { if (active()) message(error.message, true); }
         beginPolling();
@@ -249,7 +171,7 @@ export function academyActivities({ request, status, go, area, show, hide, activ
   function render() {
     tabs.forEach(control => control.setAttribute('aria-pressed', String(control.dataset.academyTab === tab)));
     app.replaceChildren();
-    ({ quest, lesson, coop, quiz })[tab]();
+    ({ coop, quiz })[tab]();
   }
   tabs.forEach(control => control.addEventListener('click', () => {
     tab = control.dataset.academyTab;
@@ -269,20 +191,13 @@ export function academyActivities({ request, status, go, area, show, hide, activ
       catch (error) { if (active()) message(error.message, true); }
       beginPolling();
     },
-    sync,
-    collect,
     reset() {
       generation++;
       clearTimeout(poll);
-      progress = blank;
+      lanterns = false;
       waiting = '';
-      challenge = game = undefined;
-      place = 'hall';
-      tab = 'quest';
-      attempt = [];
-      sequence = [];
-      recalling = false;
-      unlock(false);
+      game = undefined;
+      tab = 'quiz';
     },
   };
 }

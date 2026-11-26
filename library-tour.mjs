@@ -7,8 +7,7 @@ const stops = [
   { id: 'archives', name: 'The Archives', position: [-2.25, 1.68, -5], look: [-4.85, 2.02, -5] },
   { id: 'desk', name: 'Reading Desk', position: [0, 1.65, -6.1], look: [0, 1.05, -8.7] },
   { id: 'portrait', name: 'Portrait Gallery', position: [3.65, 2.22, -10.2], look: [3.6, 2.82, -13.28] },
-  { id: 'court', name: 'Sunstone Court', position: [0, 1.65, 7.4], look: [0, 1.9, -4.3] },
-  { id: 'observatory', name: 'The Hidden Observatory', position: [0, 1.65, 6.5], look: [0, 2.7, -4.7] }
+  { id: 'court', name: 'Sunstone Court', position: [0, 1.65, 7.4], look: [0, 1.9, -4.3] }
 ];
 
 const shelfAreas = {
@@ -582,13 +581,13 @@ function disposeGroup(group) {
   group.clear();
 }
 
-function academyPlace(room, observe) {
+function buildCourtyard(room) {
   const materials = {
-    flagstone: new THREE.MeshStandardMaterial({ color: observe ? 0x465965 : 0x788977, roughness: .78 }),
-    paving: new THREE.MeshStandardMaterial({ color: observe ? 0x8eaaac : 0x92a28c, roughness: .8 }),
-    wall: new THREE.MeshStandardMaterial({ color: observe ? 0x435164 : 0xc48f6e, roughness: .86 }),
+    flagstone: new THREE.MeshStandardMaterial({ color: 0x788977, roughness: .78 }),
+    paving: new THREE.MeshStandardMaterial({ color: 0x92a28c, roughness: .8 }),
+    wall: new THREE.MeshStandardMaterial({ color: 0xbda786, map: stone.map, roughness: .86 }),
     hedge: new THREE.MeshStandardMaterial({ color: 0x5a774a, roughness: 1 }),
-    glyph: new THREE.MeshBasicMaterial({ color: observe ? 0x9be1fc : 0xffd77b }),
+    glyph: new THREE.MeshBasicMaterial({ color: 0xffd77b }),
   };
   panel(room, materials.flagstone, [11.4, .12, 29], [0, -.12, 0]);
   for (let z = -12.5; z < 13; z += 1.22) {
@@ -599,12 +598,10 @@ function academyPlace(room, observe) {
     for (const z of [-10, -6, -2, 2, 6, 10]) {
       panel(room, materials.wall, [.55, 4.2, .58], [x, 2.1, z]);
       panel(room, brass, [.67, .075, .69], [x, 4.25, z]);
-      if (!observe) {
-        panel(room, timber, [1.08, .55, 1.3], [x * .87, .25, z + .9]);
-        const top = new THREE.Mesh(new THREE.IcosahedronGeometry(.63, 1), materials.hedge);
-        top.position.set(x * .87, .87, z + .9);
-        room.add(top);
-      }
+      panel(room, timber, [1.08, .55, 1.3], [x * .87, .25, z + .9]);
+      const top = new THREE.Mesh(new THREE.IcosahedronGeometry(.63, 1), materials.hedge);
+      top.position.set(x * .87, .87, z + .9);
+      room.add(top);
     }
   }
   arch(room, -8, 3.8, 5.25, materials.wall);
@@ -627,20 +624,12 @@ function academyPlace(room, observe) {
     orbit.position.copy(lens.position);
     room.add(orbit);
   }
-  const dais = panel(room, materials.wall, [1.65, .16, 1.52], [0, .08, -5.25]);
-  room.add(new THREE.HemisphereLight(observe ? 0xa5cfff : 0xffe3b5, 0x756c55, observe ? 2.25 : 2.8));
-  if (observe) {
-    const star = new THREE.MeshBasicMaterial({ color: 0xcdeaff });
-    for (let i = 0; i < 56; i++) {
-      const point = new THREE.Mesh(new THREE.SphereGeometry(.013 + (i % 4) * .008, 6, 4), star);
-      point.position.set(Math.sin(i * 12.39) * 13, 5 + ((i * 17) % 12) * .6, -10 - (i % 9) * 1.8);
-      room.add(point);
-    }
-  }
-  return { lens, dais };
+  panel(room, materials.wall, [1.65, .16, 1.52], [0, .08, -5.25]);
+  room.add(new THREE.HemisphereLight(0xffe3b5, 0x756c55, 2.8));
+  return lens;
 }
 
-export function createLibraryTour({ canvas, message, onStop, onPick, compact, getCover, onPage, hasPortrait, getPortrait, onAim, onJourney, onSigil }) {
+export function createLibraryTour({ canvas, message, onStop, onPick, compact, getCover, onPage, hasPortrait, getPortrait, onAim, onJourney }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.65));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -653,29 +642,15 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
   const targets = [];
   const library = new THREE.Group();
   const court = new THREE.Group();
-  const observatory = new THREE.Group();
-  scene.add(library, court, observatory);
-  court.visible = observatory.visible = false;
+  scene.add(library, court);
+  court.visible = false;
   const { spaces: shelves, alcoves, flames, sun, sky, stainedLight } = space(library, targets, draw);
-  const courtScene = academyPlace(court, false);
-  const starsScene = academyPlace(observatory, true);
-  const campusTargets = [courtScene.lens, courtScene.dais];
-  const sigilItems = [[library, 'ink', [-4.53, 3.16, 4.4]], [library, 'root', [-4.53, 3.16, -5]]];
-  for (const [group, rune, position] of sigilItems) {
-    const mark = new THREE.Mesh(new THREE.OctahedronGeometry(.20),
-      new THREE.MeshBasicMaterial({ color: rune === 'ink' ? 0x9b92de : 0xcdaa66 }));
-    mark.position.set(...position);
-    mark.userData.sigil = rune;
-    group.add(mark);
-    targets.push(mark);
-  }
-  campusTargets.forEach(marker => { marker.userData.sigil = 'star'; });
+  const courtLens = buildCourtyard(court);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let stop = stops[0];
-  let unlocked = false;
-  const wing = id => ['court', 'observatory'].includes(id) ? id : 'library';
+  const wing = id => id === 'court' ? id : 'library';
   let aim = vector(stop.look);
   let animation = null;
   let selected = [];
@@ -892,8 +867,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     const social = !document.hidden && (visitors.size || time - localWave < 1_480);
     if (((idleLights || social) && time - lastPaint >= 32) || active || moving.size || !lastPaint) {
       if (idleLights) {
-        courtScene.lens.rotation.y = time * .00043;
-        starsScene.lens.rotation.y = time * .00055;
+        courtLens.rotation.y = time * .00043;
         for (const flame of flames) {
           flame.item.position.y = flame.y + Math.sin(time * .00125 + flame.phase) * .094;
           flame.flame.scale.y = 1.68 + Math.sin(time * .009 + flame.phase) * .24;
@@ -919,7 +893,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
 
   function go(id, complete, travel) {
     const destination = stops.find(place => place.id === id);
-    if (!destination || (id === 'observatory' && !unlocked)) return;
+    if (!destination) return;
     stopMoving();
     if (!complete) onJourney?.(undefined);
     if (lifted && !complete) {
@@ -937,8 +911,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     stop = destination;
     library.visible = wing(id) === 'library';
     court.visible = id === 'court';
-    observatory.visible = id === 'observatory';
-    const atmosphere = observatory.visible ? 0x121d39 : court.visible ? 0x8b9aac : 0x261b15;
+    const atmosphere = court.visible ? 0x8b9aac : 0x261b15;
     scene.background.setHex(atmosphere);
     scene.fog.color.setHex(atmosphere);
     onStop(stop.id);
@@ -1122,9 +1095,9 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     const bounds = canvas.getBoundingClientRect();
     pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
-    const view = raycaster.intersectObjects(library.visible ? [...selected, ...targets] : court.visible ? campusTargets : [], false);
+    const view = raycaster.intersectObjects(library.visible ? [...selected, ...targets] : [], false);
     const hit = view.find(candidate => candidate.object.visible && candidate.object.parent?.visible)?.object;
-    if (event.pointerType !== 'touch' || !library.visible || hit?.userData.book || hit?.userData.sigil) return hit;
+    if (event.pointerType !== 'touch' || !library.visible || hit?.userData.book) return hit;
     let closest = hit;
     let distance = 18;
     for (const spine of selected) {
@@ -1188,7 +1161,7 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
       }
     } else if (!animation) {
       const object = target(event);
-      const title = object?.userData.book?.title || (object?.userData.sigil ? 'Inspect academy sigil' : object?.userData.stop === 'portrait' ? 'View the framed portrait' : '');
+      const title = object?.userData.book?.title || (object?.userData.stop === 'portrait' ? 'View the framed portrait' : '');
       canvas.classList.toggle('can-pick', Boolean(object));
       message.textContent = title || '';
     }
@@ -1200,7 +1173,6 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
     if (press && !press.moved && !animation) {
       const object = target(event);
       if (object?.userData.book) stage(object.userData.book, object.userData.model, event.pointerType === 'touch');
-      else if (object?.userData.sigil) onSigil?.(object.userData.sigil);
       else if (object?.userData.stop) go(object.userData.stop);
     }
     press = null;
@@ -1228,10 +1200,6 @@ export function createLibraryTour({ canvas, message, onStop, onPick, compact, ge
 
   return {
     go, stage, locate, setBooks, setAvatar, movement, stopMoving, zoom, presencePose, setVisitors,
-    setObservatoryAccess(allowed) {
-      unlocked = allowed;
-      if (!unlocked && stop.id === 'observatory') go('hall');
-    },
     wave() {
       localWave = performance.now();
       if (!paused && !frame) frame = requestAnimationFrame(animate);

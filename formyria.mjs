@@ -4,6 +4,9 @@ const api = body.dataset.libraryApi;
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
 const compact = matchMedia('(max-width: 850px), (pointer: coarse)');
 const state = { token: storage('sessionStorage', 'formyria-session'), account: null, mode: 'login', books: [], categories: new Map(), book: null };
+const castleHub = $('#castle-hub');
+const castleWing = $('#castle-wing');
+const castleWings = { orrery: 'Orrery Tower', conservatory: 'Conservatory' };
 const loginForm = $('#access-form');
 const passwordForm = $('#password-form');
 const accessStatus = $('#access-status');
@@ -24,7 +27,7 @@ let presenceTask = Promise.resolve();
 let pendingWave = false;
 let wavedAt = -Infinity;
 let memberListText = '';
-const tourNames = { hall: 'The Grand Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery', court: 'Sunstone Court', observatory: 'The Hidden Observatory' };
+const tourNames = { hall: 'Library Hall', west: 'West Stacks', east: 'East Gallery', archives: 'The Archives', desk: 'The Reading Desk', portrait: 'The Portrait Gallery', court: 'Sunstone Court', observatory: 'The Hidden Observatory' };
 let currentMembers = [];
 let lookingUpMember = '';
 let readingShared = '';
@@ -36,7 +39,9 @@ let showBookRequests;
 let academy;
 let academyLoading;
 let currentTourStop = 'hall';
-let observatoryAccess = false;
+let castleRoom = 'gate';
+let visitRevision = 0;
+let wingActivity;
 const newBookPageSize = 24;
 let newBookCount = newBookPageSize;
 
@@ -102,8 +107,8 @@ document.addEventListener('keydown', event => {
 function showStop(place) {
   currentTourStop = place;
   const activity = $('#tour-academy-action');
-  activity.hidden = !['west', 'archives', 'court', 'observatory'].includes(place);
-  activity.textContent = place === 'court' ? 'Court activities' : place === 'observatory' ? 'Book quizzes' : 'Inspect the sigil';
+  activity.hidden = place !== 'court';
+  activity.textContent = 'Twin Lanterns';
   $('#tour-room').textContent = tourNames[place];
   $('#tour-instructions').textContent = {
     hall: 'Walk with W A S D, the arrow keys, or the on-screen arrows. Select a bookcase to approach it.',
@@ -112,8 +117,7 @@ function showStop(place) {
     archives: 'Reference books and works awaiting classification. Select a book by its spine.',
     desk: 'Pick a book from a stack or the catalogue to bring it to the desk.',
     portrait: 'The framed portrait hangs at the far end of the hall.',
-    court: 'Explore the open-air court, light a lantern with a friend, or practise lanternlight.',
-    observatory: 'You solved the Astronomer’s Lock. Try a book quiz under the stars.',
+    court: 'Meet another member to light the Twin Lanterns.',
   }[place];
   for (const control of document.querySelectorAll('[data-stop]')) {
     if (control.dataset.stop === place) control.setAttribute('aria-current', 'location');
@@ -136,11 +140,10 @@ async function loadTour() {
     return;
   }
   if (!tourLoading) {
-    tourLoading = import('./library-tour.mjs?v=12').then(module => {
+    tourLoading = import('./library-tour.mjs?v=13').then(module => {
       tour = module.createLibraryTour({
         canvas: $('#tour-canvas'), message: $('#tour-book-label'), onStop: showStop, compact,
         onPick: book => openBook(book, true),
-        onSigil: rune => openAcademy(null, 'quest', rune),
         onJourney(book) {
           const notice = $('#book-journey');
           notice.hidden = !book;
@@ -174,7 +177,6 @@ async function loadTour() {
           if (isDialogOpen($('#shelf-dialog'))) setShelfChoices();
         }
       });
-      tour.setObservatoryAccess(observatoryAccess);
       tour.setAvatar(state.account?.avatar || (state.account?.role === 'admin' ? 'librarian' : 'member'));
       tour.setBooks(state.books);
     }).catch(error => {
@@ -195,7 +197,7 @@ document.querySelectorAll('[data-stop]').forEach(control => {
 
 function prepareAcademy() {
   if (!academyLoading) {
-    academyLoading = import('./academy.mjs?v=12').then(({ academyActivities }) => {
+    academyLoading = import('./academy.mjs?v=13').then(({ academyActivities }) => {
       const dialog = $('#academy-dialog');
       academy = academyActivities({
         request, status, area: () => tour && !$('#library-tour').hidden && currentTourStop,
@@ -210,11 +212,6 @@ function prepareAcademy() {
           tour.go(place);
           return true;
         },
-        unlock(allowed) {
-          observatoryAccess = allowed;
-          tour?.setObservatoryAccess(allowed);
-          document.querySelectorAll('[data-stop="observatory"]').forEach(control => { control.hidden = !allowed; });
-        },
       });
       return academy;
     }).catch(error => { academyLoading = null; throw error; });
@@ -222,25 +219,19 @@ function prepareAcademy() {
   return academyLoading;
 }
 
-async function openAcademy(control, tab, rune) {
+async function openAcademy(control, tab) {
   if (control) closeDialog(control.closest('dialog'));
   const token = state.token;
   try {
     const activities = await prepareAcademy();
     if (!state.account || state.token !== token) return;
     await activities.open(tab);
-    if (rune) await activities.collect(rune);
   } catch (error) {
     openDialog($('#academy-dialog'));
     status($('#academy-feedback'), error.message, true);
   }
 }
-document.querySelectorAll('[data-academy]').forEach(control =>
-  control.addEventListener('click', () => openAcademy(control)));
-$('#tour-academy-action').addEventListener('click', event => {
-  const tab = currentTourStop === 'court' ? 'lesson' : currentTourStop === 'observatory' ? 'quiz' : 'quest';
-  openAcademy(event.currentTarget, tab);
-});
+$('#tour-academy-action').addEventListener('click', event => openAcademy(event.currentTarget, 'coop'));
 
 function shareLabels(members = [], message) {
   currentMembers = members;
@@ -638,8 +629,8 @@ function mode(next) {
   $('#avatar-field').hidden = $('#avatar-field').disabled = next !== 'register';
   $('#login-tab').setAttribute('aria-pressed', String(next === 'login'));
   $('#register-tab').setAttribute('aria-pressed', String(next === 'register'));
-  $('#gate-title').textContent = { login: 'Enter the library', register: 'Request membership', password: 'Change your initial password' }[next];
-  $('#access-submit').firstChild.nodeValue = (next === 'register' ? 'Send membership request' : 'Unlock the doors') + ' ';
+  $('#gate-title').textContent = { login: 'Sign in at the gate', register: 'Request membership', password: 'Change your initial password' }[next];
+  $('#access-submit').firstChild.nodeValue = (next === 'register' ? 'Send membership request' : 'Raise the gate') + ' ';
   const password = loginForm.elements.password;
   password.autocomplete = next === 'register' ? 'new-password' : 'current-password';
   password.minLength = next === 'register' ? 10 : 1;
@@ -648,6 +639,7 @@ function mode(next) {
 }
 
 function closeLibrary(message = '') {
+  visitRevision++;
   shared = false;
   syncSharedTour();
   closeDialog($('#shared-tour-dialog'));
@@ -678,11 +670,128 @@ function closeLibrary(message = '') {
   $('#tour-office').hidden = true;
   $('#compact-office').hidden = true;
   $('#library').hidden = true;
+  castleRoom = 'gate';
+  castleHub.hidden = castleWing.hidden = true;
+  delete castleHub.dataset.opening;
+  castleHub.querySelectorAll('[data-castle-door]').forEach(button => { button.disabled = false; });
+  wingActivity?.destroy?.();
+  wingActivity = null;
+  $('#castle-activities').replaceChildren();
+  $('#return-to-castle').hidden = true;
   $('#entrance').hidden = false;
   $('#entrance').classList.remove('entering');
   mode('login');
   status(accessStatus, message);
 }
+
+function showCastleRoom(room) {
+  castleRoom = room;
+  $('#entrance').hidden = room !== 'gate';
+  castleHub.hidden = room !== 'castle';
+  castleWing.hidden = !Object.hasOwn(castleWings, room);
+  $('#library').hidden = room !== 'library';
+  $('#return-to-castle').hidden = room === 'gate' || room === 'castle';
+  if (room !== 'library') {
+    showTour(false);
+    setAmbience(false);
+  }
+  if (castleWing.hidden) {
+    wingActivity?.destroy?.();
+    wingActivity = null;
+    $('#castle-activities').replaceChildren();
+  }
+  window.scrollTo(0, 0);
+}
+
+function visitHall(animate = false) {
+  visitRevision++;
+  closeDialog($('#academy-dialog'));
+  showCastleRoom('castle');
+  castleHub.classList.toggle('arriving', animate);
+  $('#castle-hub-title').focus({ preventScroll: true });
+}
+
+function animateCastle() { return !motion.matches && !body.classList.contains('lightweight'); }
+
+async function visitLibrary(destination = 'hall') {
+  const revision = ++visitRevision;
+  const previous = castleRoom;
+  showCastleRoom('library');
+  await Promise.all([loadCatalogue(), loadTour(), state.account.role === 'admin' && loadNotifications()]);
+  if (revision !== visitRevision || !state.account) return false;
+  if (tour && !$('#library-tour').hidden) {
+    if (previous !== 'library' || destination !== 'hall') tour.go(destination);
+    $('#tour-room').focus({ preventScroll: true });
+  } else $('#hall-title').focus({ preventScroll: true });
+  return true;
+}
+
+async function visitWing(room) {
+  const revision = ++visitRevision;
+  wingActivity?.destroy?.();
+  wingActivity = null;
+  castleWing.dataset.wing = room;
+  castleWing.classList.remove('arriving');
+  $('#castle-wing-title').textContent = castleWings[room];
+  $('#castle-activities').replaceChildren();
+  showCastleRoom(room);
+  if (animateCastle()) castleWing.classList.add('arriving');
+  $('#castle-wing-title').focus({ preventScroll: true });
+  try {
+    const { buildCastleActivity } = await import('./castle-games.mjs?v=13');
+    if (revision !== visitRevision || !state.account) return;
+    const username = state.account.username;
+    wingActivity = buildCastleActivity($('#castle-activities'), room, {
+      remember: (key, value) => storage('localStorage', 'formyria.castle.' + username + '.' + key, value),
+      finish: done => { castleWing.dataset.finished = String(done); },
+      openQuiz: () => openAcademy(null, 'quiz'),
+      async openCourtyard() {
+        if (body.classList.contains('lightweight')) return false;
+        if (!await visitLibrary('court')) return;
+        if ($('#library-tour').hidden) {
+          await visitWing('conservatory');
+          return false;
+        }
+        return true;
+      },
+      animated: !body.classList.contains('lightweight'),
+    });
+  } catch (error) {
+    if (revision === visitRevision) $('#castle-activities').append(node('p', 'This room could not open. Return to Castle Hall and try its door again.', 'form-status'));
+  }
+}
+
+castleHub.querySelectorAll('[data-castle-door]').forEach(button => button.addEventListener('click', async () => {
+  if (castleHub.dataset.opening || !state.account || castleRoom !== 'castle') return;
+  const room = button.dataset.castleDoor;
+  const revision = visitRevision;
+  const doors = [...castleHub.querySelectorAll('[data-castle-door]')];
+  doors.forEach(door => { door.disabled = true; });
+  try {
+    if (animateCastle()) {
+      castleHub.classList.remove('arriving');
+      castleHub.dataset.opening = room;
+      await new Promise(resolve => setTimeout(resolve, 1190));
+    }
+    if (revision !== visitRevision) return;
+    if (room === 'library') await visitLibrary();
+    else await visitWing(room);
+  } finally {
+    delete castleHub.dataset.opening;
+    doors.forEach(door => { door.disabled = false; });
+  }
+}));
+
+document.querySelectorAll('[data-castle-hall]').forEach(control => control.addEventListener('click', () => {
+  closeDialog(control.closest('dialog'));
+  if (state.account && castleRoom !== 'castle') visitHall();
+}));
+document.querySelectorAll('[data-library-jump]').forEach(control => control.addEventListener('click', async event => {
+  event.preventDefault();
+  closeDialog(control.closest('dialog'));
+  if (!state.account || (castleRoom !== 'library' && !await visitLibrary())) return;
+  $(control.hash)?.scrollIntoView({ behavior: animateCastle() ? 'smooth' : 'instant' });
+}));
 
 async function enter(animate) {
   if (state.account.rotate) {
@@ -691,28 +800,25 @@ async function enter(animate) {
     return;
   }
   const activeToken = state.token;
-  const effect = animate && !motion.matches && !body.classList.contains('lightweight');
+  const effect = animate && animateCastle();
+  $('.hall-camera img').loading = 'eager';
   if (effect) {
     $('#entrance').classList.add('entering');
-    await new Promise(resolve => setTimeout(resolve, 1100));
+    window.scrollTo(0, 0);
+    await new Promise(resolve => setTimeout(resolve, 1990));
   }
   if (state.token !== activeToken) return;
-  $('#entrance').hidden = true;
-  $('#library').hidden = false;
-  $('.hall-hero').classList.toggle('arriving', effect);
-  $('#hall-title').focus({ preventScroll: true });
-  window.scrollTo(0, 0);
+  visitHall(effect);
+  $('#entrance').classList.remove('entering');
   $('#office-button').hidden = state.account.role !== 'admin';
   $('#tour-office').hidden = state.account.role !== 'admin';
   $('#compact-office').hidden = state.account.role !== 'admin';
-  await Promise.all([loadCatalogue(), loadTour(), state.account.role === 'admin' && loadNotifications(),
-    prepareAcademy().then(activities => state.token === activeToken && activities.sync()).catch(() => {})]);
 }
 
 async function submit(form, task) {
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
-  status(accessStatus, 'Checking the library entrance…');
+  status(accessStatus, 'Checking your access…');
   try { await task(Object.fromEntries(new FormData(form))); }
   catch (error) { status(accessStatus, error.message, true); }
   finally { button.disabled = false; }
@@ -955,7 +1061,8 @@ async function loadMembers() {
   } catch (error) { status(officeStatus, error.message, true); }
 }
 
-function openOffice() {
+async function openOffice() {
+  if (state.account?.role !== 'admin' || (castleRoom !== 'library' && !await visitLibrary())) return;
   $('#office').hidden = false;
   $('#office-title').focus({ preventScroll: true });
   $('#office').scrollIntoView({ behavior: motion.matches ? 'instant' : 'smooth' });
@@ -1001,7 +1108,8 @@ async function openStudy() {
     displayStudy();
   } catch (error) { status($('#study-status'), error.message, true); }
 }
-document.querySelectorAll('[data-study]').forEach(button => button.addEventListener('click', () => {
+document.querySelectorAll('[data-study]').forEach(button => button.addEventListener('click', async () => {
+  if (!state.account || (castleRoom !== 'library' && !await visitLibrary())) return;
   openStudy();
   $('#study-title').focus({ preventScroll: true });
   $('#study').scrollIntoView({ behavior: motion.matches ? 'instant' : 'smooth' });
